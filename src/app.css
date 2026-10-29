@@ -1,0 +1,374 @@
+@import '@fontsource-variable/geist';
+
+/* Plain neutrals, no accent colour. Dark mode is a `.dark` class on <html>,
+   set before paint by the script in app.html and flipped by the theme toggle. */
+:root {
+	color-scheme: light;
+	--background: #ffffff;
+	--foreground: #171717;
+	--muted: #f6f6f6;
+	--muted-foreground: #737373;
+	--accent: #efefef;
+	--border: #ececec;
+	--ring: #c9c9c9;
+	--canvas: #f5f5f5;
+	--danger: #d93025;
+	--paper-shadow: drop-shadow(0 1px 1px rgb(0 0 0 / 0.04)) drop-shadow(0 12px 28px rgb(0 0 0 / 0.07));
+	--shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.06);
+	--sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+	--mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+	--ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark {
+	color-scheme: dark;
+	--background: #0c0c0c;
+	--foreground: #ededed;
+	--muted: #161616;
+	--muted-foreground: #8f8f8f;
+	--accent: #222222;
+	--border: #222222;
+	--ring: #4a4a4a;
+	--canvas: #121212;
+	--danger: #ff6b5e;
+	--paper-shadow: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)) drop-shadow(0 16px 36px rgb(0 0 0 / 0.55));
+	--shadow-lg: 0 10px 24px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	height: 100%;
+	margin: 0;
+}
+
+html {
+	font-family: var(--sans);
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+}
+
+body {
+	background: var(--background);
+	color: var(--foreground);
+	font-size: 14px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+
+button {
+	cursor: pointer;
+}
+
+:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+::selection {
+	background: color-mix(in oklab, var(--foreground) 14%, transparent);
+	color: var(--foreground);
+}
+
+code {
+	font-family: var(--mono);
+	font-size: 0.9em;
+}
+
+.muted {
+	color: var(--muted-foreground);
+}
+
+.link {
+	color: var(--foreground);
+	text-decoration: underline;
+	text-decoration-color: var(--ring);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+	transition: text-decoration-color 200ms ease;
+}
+
+.link:hover {
+	text-decoration-color: var(--foreground);
+}
+
+/* ---------- property rows: a muted label, then the value you edit in place ---------- */
+
+.prop {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 32px;
+	margin: 0 -10px;
+	padding: 0 10px;
+	border-radius: 8px;
+	transition: background-color 200ms ease;
+}
+
+.prop:hover {
+	background: color-mix(in oklab, var(--muted) 70%, transparent);
+}
+
+.prop:focus-within {
+	background: var(--muted);
+}
+
+.prop.top {
+	align-items: flex-start;
+}
+
+.prop.top > .k {
+	padding-top: 6px;
+}
+
+.k {
+	flex: none;
+	width: 92px;
+	color: var(--muted-foreground);
+	white-space: nowrap;
+}
+
+.v {
+	flex: 1;
+	min-width: 0;
+	height: 32px;
+	padding: 0;
+	border: 0;
+	outline: none;
+	background: transparent;
+	color: var(--foreground);
+}
+
+.v::placeholder {
+	color: var(--ring);
+}
+
+textarea.v {
+	height: auto;
+	min-height: 32px;
+	padding: 6px 0;
+	line-height: 1.45;
+	resize: none;
+	field-sizing: content;
+}
+
+select.v {
+	appearance: none;
+	cursor: pointer;
+	field-sizing: content;
+}
+
+.mono {
+	font-family: var(--mono);
+	font-size: 13px;
+}
+
+.num {
+	font-variant-numeric: tabular-nums;
+}
+
+/* ---------- buttons ---------- */
+
+/* Text that acts: muted until hovered, like the nav on vedantagrw.com */
+.quiet {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 30px;
+	padding: 0;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	color: var(--muted-foreground);
+	white-space: nowrap;
+	transition: color 200ms ease;
+}
+
+.quiet:hover,
+.quiet.on {
+	color: var(--foreground);
+}
+
+.quiet:disabled {
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+.icon-btn {
+	display: inline-grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: var(--muted-foreground);
+	transition:
+		color 200ms ease,
+		background-color 200ms ease;
+}
+
+.icon-btn:hover {
+	background: var(--muted);
+	color: var(--foreground);
+}
+
+.solid {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	height: 30px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--foreground);
+	color: var(--background);
+	font-weight: 500;
+	white-space: nowrap;
+	transition: opacity 200ms ease;
+}
+
+.solid:hover {
+	opacity: 0.86;
+}
+
+.solid:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.kbd {
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.55;
+}
+
+/* ---------- menus ---------- */
+
+.menu-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 6px 10px;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: var(--foreground);
+	font-size: 13.5px;
+	text-align: left;
+	white-space: nowrap;
+	transition: background-color 150ms ease;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+	background: var(--muted);
+	outline: none;
+}
+
+.menu-item:disabled {
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+.menu-item .meta {
+	margin-left: auto;
+	color: var(--muted-foreground);
+}
+
+.menu-sep {
+	height: 1px;
+	margin: 4px 8px;
+	background: var(--border);
+}
+
+/* ---------- tooltips: data-tip="Label" ---------- */
+
+[data-tip] {
+	position: relative;
+}
+
+/* Only generated while hovered, so hidden tips never widen a scroll area */
+@media (hover: hover) {
+	[data-tip]:hover::after {
+		content: attr(data-tip);
+		position: absolute;
+		top: calc(100% + 8px);
+		left: 50%;
+		z-index: 60;
+		padding: 4px 8px;
+		border-radius: 6px;
+		background: var(--foreground);
+		color: var(--background);
+		font-size: 12px;
+		font-weight: 400;
+		line-height: 1.4;
+		white-space: nowrap;
+		pointer-events: none;
+		transform: translateX(-50%);
+		animation: tip 150ms ease 220ms both;
+	}
+
+	[data-tip][data-tip-side='top']:hover::after {
+		top: auto;
+		bottom: calc(100% + 8px);
+	}
+
+	[data-tip][data-tip-align='end']:hover::after {
+		left: auto;
+		right: 0;
+		transform: none;
+	}
+}
+
+@keyframes tip {
+	from {
+		opacity: 0;
+		translate: 0 -2px;
+	}
+}
+
+/* ---------- entrance: blocks fade up one after another ---------- */
+
+@keyframes rise {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+		filter: blur(3px);
+	}
+}
+
+.rise {
+	animation: rise 600ms var(--ease) both;
+	animation-delay: calc(var(--i, 0) * 70ms + 40ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.rise {
+		animation: none;
+	}
+}
+
+/* Slow cross-fade between themes */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 450ms;
+	animation-timing-function: ease-in-out;
+}
