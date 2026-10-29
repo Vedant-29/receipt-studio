@@ -31,7 +31,7 @@
 	const money = (v: number) => formatMoney(v, c.currency);
 	const currencies = Object.entries(CURRENCIES);
 
-	const KEY = 'receipt-studio:sections';
+	const KEY = 'stub:sections';
 	const DEFAULT_OPEN = {
 		store: true,
 		order: true,

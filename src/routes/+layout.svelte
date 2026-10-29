@@ -8,7 +8,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>Receipt Studio</title>
+	<title>Stub</title>
 </svelte:head>
 
 {@render children()}

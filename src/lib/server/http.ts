@@ -1,7 +1,10 @@
 import type { OutputFormat } from '#lib/receipt/index.js';
-import { ChromeMissingError } from './chrome';
+import { UnavailableError } from './errors';
 
-export const problem = (status: number, error: string) => Response.json({ error }, { status });
+export const problem = (status: number, error: string, headers?: HeadersInit) =>
+	Response.json({ error }, { status, headers });
+
+export const notFound = () => problem(404, 'Not found');
 
 const OUTPUT_ALIASES: Record<string, OutputFormat> = {
 	html: 'html',
@@ -33,7 +36,9 @@ export async function readBody(request: Request): Promise<Record<string, unknown
 }
 
 export function failure(err: unknown): Response {
-	if (err instanceof ChromeMissingError) return problem(503, err.message);
+	if (err instanceof UnavailableError) {
+		return problem(503, err.message, err.retryAfter ? { 'Retry-After': String(err.retryAfter) } : undefined);
+	}
 	console.error(err);
 	return problem(500, err instanceof Error ? err.message : 'Something went wrong');
 }

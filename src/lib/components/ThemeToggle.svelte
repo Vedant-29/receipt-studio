@@ -9,7 +9,7 @@
 			dark = !dark;
 			document.documentElement.classList.toggle('dark', dark);
 			try {
-				localStorage.setItem('receipt-studio:theme', dark ? 'dark' : 'light');
+				localStorage.setItem('stub:theme', dark ? 'dark' : 'light');
 			} catch {
 				// Not remembered in private windows; the toggle still works
 			}

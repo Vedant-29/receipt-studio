@@ -1,25 +1,42 @@
-import { findChrome } from '#lib/server/chrome.js';
-import { getDraft, getHistory, getSettings, resolveDir, tildify } from '#lib/server/storage.js';
-import { canChooseFolder, revealLabel } from '#lib/server/system.js';
+import { platform } from '#platform';
+import type { StudioData } from '#lib/types.js';
 import type { PageServerLoad } from './$types';
 
-// A local tool: render in the browser only, so per-browser UI state can be read straight away
+// Rendered in the browser only, so per-browser state (sections, theme, the hosted
+// version's saved receipts) can be read straight away
 export const ssr = false;
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async (): Promise<StudioData> => {
+	const local = platform.local;
+	if (!local) {
+		return {
+			mode: 'cloud',
+			settings: null,
+			draft: null,
+			history: [],
+			folder: '',
+			canChoose: false,
+			revealLabel: '',
+			images: true,
+			turnstileSiteKey: platform.cloud?.turnstileSiteKey ?? ''
+		};
+	}
+
 	const [settings, draft, history, canChoose] = await Promise.all([
-		getSettings(),
-		getDraft(),
-		getHistory(),
-		canChooseFolder()
+		local.getSettings(),
+		local.getDraft(),
+		local.getHistory(),
+		local.canChooseFolder()
 	]);
 	return {
+		mode: 'local',
 		settings,
-		folder: tildify(resolveDir(settings.saveDir)),
 		draft,
 		history,
+		folder: local.tildify(local.resolveDir(settings.saveDir)),
 		canChoose,
-		revealLabel,
-		chrome: findChrome() !== null
+		revealLabel: local.revealLabel,
+		images: local.hasChrome(),
+		turnstileSiteKey: ''
 	};
 };

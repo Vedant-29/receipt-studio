@@ -6,4 +6,4 @@ export { CURRENCIES, currencyFormat, formatMoney } from './money';
 export { isTemplate, normalizeReceipt, prune } from './normalize';
 export { renderDocument, renderReceipt } from './render';
 export { sampleReceipt, stamp } from './samples';
-export { DEFAULT_STYLE } from './style';
+export { DEFAULT_STYLE, resolveStyle } from './style';

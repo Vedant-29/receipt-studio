@@ -27,7 +27,7 @@ function stale() {
 }
 
 if (flags.has('--build') || stale()) {
-	console.log('Building Receipt Studio…');
+	console.log('Building Stub…');
 	const vite = join(root, 'node_modules', 'vite', 'bin', 'vite.js');
 	const result = spawnSync(process.execPath, [vite, 'build', '--logLevel', 'warn'], { stdio: 'inherit' });
 	if (result.status !== 0) process.exit(result.status ?? 1);
@@ -57,8 +57,8 @@ const shown = host === '127.0.0.1' || host === '0.0.0.0' ? 'localhost' : host;
 const url = `http://${shown}:${port}`;
 
 console.log(`
-  Receipt Studio   ${url}
-  API              POST ${url}/api/v1/receipt
+  Stub   ${url}
+  API    POST ${url}/api/v1/receipt
 
   Ctrl+C to stop
 `);

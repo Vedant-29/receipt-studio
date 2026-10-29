@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { api, errorMessage } from '#lib/client.js';
 	import type { OutputFormat } from '#lib/receipt/index.js';
-	import { toasts } from '#lib/toast.svelte.js';
 	import type { AfterSave, Settings } from '#lib/types.js';
 	import { noAutofill } from '#lib/ui.js';
 	import Dialog from './Dialog.svelte';
@@ -9,16 +7,21 @@
 
 	interface Props {
 		open?: boolean;
+		mode: 'local' | 'cloud';
 		settings: Settings;
 		folder: string;
+		/** Local: a native folder picker exists. Hosted: the browser can save into a folder (Chrome, Edge). */
 		canChoose: boolean;
-		chrome: boolean;
+		images: boolean;
 		revealLabel: string;
 		onchange: (patch: Partial<Settings>) => void;
-		onfolder: () => void;
+		onchoose: () => Promise<void>;
+		onclear?: () => void;
+		onfolder?: () => void;
 	}
 
-	let { open = $bindable(false), settings, folder, canChoose, chrome, revealLabel, onchange, onfolder }: Props = $props();
+	let { open = $bindable(false), mode, settings, folder, canChoose, images, revealLabel, onchange, onchoose, onclear, onfolder }: Props =
+		$props();
 
 	let dir = $state('');
 	let choosing = $state(false);
@@ -35,13 +38,7 @@
 	async function choose() {
 		choosing = true;
 		try {
-			const { path } = await api.chooseFolder();
-			if (path) {
-				dir = path;
-				onchange({ saveDir: path });
-			}
-		} catch (err) {
-			toasts.error(errorMessage(err));
+			await onchoose();
 		} finally {
 			choosing = false;
 		}
@@ -66,22 +63,38 @@
 </script>
 
 <Dialog bind:open title="Settings" width={540}>
-	<div class="prop">
-		<span class="k">Save to</span>
-		<input
-			{...noAutofill}
-			class="v mono"
-			bind:value={dir}
-			onchange={commit}
-			onkeydown={(e) => e.key === 'Enter' && commit()}
-			spellcheck="false"
-			aria-label="Save folder"
-		/>
-		{#if canChoose}
-			<button class="quiet" type="button" disabled={choosing} onclick={choose}>Change</button>
-		{/if}
-		<button class="quiet" type="button" onclick={onfolder}>Open</button>
-	</div>
+	{#if mode === 'local'}
+		<div class="prop">
+			<span class="k">Save to</span>
+			<input
+				{...noAutofill}
+				class="v mono"
+				bind:value={dir}
+				onchange={commit}
+				onkeydown={(e) => e.key === 'Enter' && commit()}
+				spellcheck="false"
+				aria-label="Save folder"
+			/>
+			{#if canChoose}
+				<button class="quiet" type="button" disabled={choosing} onclick={choose}>Change</button>
+			{/if}
+			<button class="quiet" type="button" onclick={onfolder}>Open</button>
+		</div>
+	{:else}
+		<div class="prop">
+			<span class="k">Save to</span>
+			<span class="v folder">{folder}</span>
+			{#if canChoose}
+				<button class="quiet" type="button" disabled={choosing} onclick={choose}>
+					{settings.saveDir ? 'Change' : 'Choose a folder'}
+				</button>
+			{/if}
+			{#if settings.saveDir}
+				<button class="quiet" type="button" onclick={onclear}>Use Downloads</button>
+			{/if}
+		</div>
+	{/if}
+
 	<div class="prop">
 		<span class="k">Format</span>
 		<Tabs flush label="Format" options={formats} bind:value={() => settings.format, (v) => onchange({ format: v })} />
@@ -90,16 +103,25 @@
 		<span class="k">Resolution</span>
 		<Tabs flush label="Resolution" options={scales} bind:value={() => settings.scale, (v) => onchange({ scale: v })} />
 	</div>
-	<div class="prop">
-		<span class="k">After saving</span>
-		<Tabs flush label="After saving" options={afterSave} bind:value={() => settings.afterSave, (v) => onchange({ afterSave: v })} />
-	</div>
+	{#if mode === 'local'}
+		<div class="prop">
+			<span class="k">After saving</span>
+			<Tabs flush label="After saving" options={afterSave} bind:value={() => settings.afterSave, (v) => onchange({ afterSave: v })} />
+		</div>
+	{/if}
 
-	<p class="note">
-		Saving never asks where. Files go straight into <code>{folder}</code>, named after the store and order number.
-		Resolution applies to PNG and JPEG.
-	</p>
-	{#if !chrome}
+	{#if mode === 'local'}
+		<p class="note">
+			Saving never asks where. Files go straight into <code>{folder}</code>, named after the store and order number.
+			Resolution applies to PNG and JPEG.
+		</p>
+	{:else}
+		<p class="note">
+			Receipts are made in your browser and never uploaded. Your draft and saved receipts stay in this browser.
+			{#if !canChoose}To save straight into a folder instead of Downloads, use Chrome or Edge.{/if}
+		</p>
+	{/if}
+	{#if !images}
 		<p class="note warn">
 			Chrome wasn't found, so only HTML can be saved. Install Google Chrome, or start the app with
 			<code>CHROME_PATH</code> set to Chromium, Edge or Brave.
@@ -126,5 +148,10 @@
 
 	.k {
 		width: 104px;
+	}
+
+	.folder {
+		display: flex;
+		align-items: center;
 	}
 </style>

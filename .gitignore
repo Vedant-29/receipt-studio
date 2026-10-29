@@ -28,3 +28,7 @@ vite.config.ts.timestamp-*
 # Agent instructions, kept local
 AGENTS.md
 CLAUDE.md
+
+# Wrangler local secrets and state
+.dev.vars*
+.wrangler

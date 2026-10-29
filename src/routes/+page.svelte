@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { api, errorMessage } from '#lib/client.js';
+	import { onMount } from 'svelte';
+	import { canChooseFolder, localBackend, webBackend } from '#lib/backend.js';
+	import { errorMessage } from '#lib/client.js';
 	import ApiDialog from '#lib/components/ApiDialog.svelte';
 	import Editor from '#lib/components/Editor.svelte';
 	import HistoryDialog from '#lib/components/HistoryDialog.svelte';
@@ -10,21 +12,34 @@
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
 	import { blankReceipt, nextReceipt, toDraft, toPayload, type Draft } from '#lib/editor.js';
-	import { normalizeReceipt, renderReceipt, sampleReceipt, type OutputFormat } from '#lib/receipt/index.js';
+	import { normalizeReceipt, renderReceipt, sampleReceipt, type OutputFormat, type Receipt } from '#lib/receipt/index.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import type { HistoryEntry, Settings } from '#lib/types.js';
+	import * as webStore from '#lib/web-store.js';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
+	// The local app keeps its state on disk (through its server); the hosted version keeps it in this browser
 	// svelte-ignore state_referenced_locally
-	let draft = $state<Draft>(toDraft(data.draft));
+	const cloud = data.mode === 'cloud';
+	const backend = cloud ? webBackend() : localBackend();
+
+	function firstDraft(): Draft {
+		const saved: unknown = cloud ? webStore.loadDraft() : data.draft;
+		if (saved) return toDraft(normalizeReceipt(saved));
+		const sample = sampleReceipt('default');
+		sample.style.edge = 'zigzag';
+		return toDraft(sample);
+	}
+
 	// svelte-ignore state_referenced_locally
-	let settings = $state<Settings>(data.settings);
+	let settings = $state<Settings>(cloud ? webStore.loadSettings() : (data.settings as Settings));
 	// svelte-ignore state_referenced_locally
-	let folder = $state(data.folder);
+	let folder = $state(cloud ? settings.saveDir || 'Downloads' : data.folder);
 	// svelte-ignore state_referenced_locally
 	let history = $state<HistoryEntry[]>(data.history);
+	let draft = $state<Draft>(firstDraft());
 
 	let saving = $state(false);
 	let newOpen = $state(false);
@@ -34,11 +49,17 @@
 
 	const html = $derived(renderReceipt(draft));
 	const payload = $derived(toPayload(draft));
+	// svelte-ignore state_referenced_locally
+	const canChoose = cloud ? canChooseFolder() : data.canChoose;
 
-	// Keep the draft on disk, so closing the tab never loses work
+	onMount(async () => {
+		if (cloud) history = await backend.history().catch(() => []);
+	});
+
+	// Keep the draft, so a refresh or closed tab never loses work
 	$effect(() => {
-		const snapshot = $state.snapshot(draft);
-		const timer = setTimeout(() => api.draft(snapshot).catch(() => {}), 400);
+		const snapshot = $state.snapshot(draft) as Receipt;
+		const timer = setTimeout(() => backend.saveDraft(snapshot), 400);
 		return () => clearTimeout(timer);
 	});
 
@@ -50,9 +71,10 @@
 	}
 
 	async function changeSettings(patch: Partial<Settings>) {
-		settings = { ...settings, ...patch };
+		const current = $state.snapshot(settings) as Settings;
+		settings = { ...current, ...patch };
 		try {
-			const res = await api.settings(patch);
+			const res = await backend.updateSettings(current, patch);
 			settings = res.settings;
 			folder = res.folder;
 		} catch (err) {
@@ -60,24 +82,20 @@
 		}
 	}
 
-	const openFile = (id: string) => api.files('open', id).catch((e) => toasts.error(errorMessage(e)));
-	const revealFile = (id: string) => api.files('reveal', id).catch((e) => toasts.error(errorMessage(e)));
-	const openFolder = () => api.files('folder').catch((e) => toasts.error(errorMessage(e)));
+	const report = (task: Promise<unknown> | undefined) => task?.catch((e) => toasts.error(errorMessage(e)));
 
 	async function save(format: OutputFormat = settings.format) {
 		if (saving) return;
 		saving = true;
 		try {
-			const file = await api.save(payload, format, settings.scale);
-			toasts.show(`Saved ${file.filename}`, {
-				actions: [
-					{ label: 'Open', run: () => openFile(file.id) },
-					{ label: data.revealLabel, run: () => revealFile(file.id) }
-				]
-			});
-			if (settings.afterSave === 'open') openFile(file.id);
-			if (settings.afterSave === 'reveal') revealFile(file.id);
-			history = await api.history();
+			const file = await backend.save(payload, format, settings.scale);
+			const actions = [];
+			if (backend.open) actions.push({ label: 'Open', run: () => report(backend.open?.(file.id)) });
+			if (backend.reveal) actions.push({ label: data.revealLabel, run: () => report(backend.reveal?.(file.id)) });
+			toasts.show(cloud && !settings.saveDir ? `Downloaded ${file.filename}` : `Saved ${file.filename}`, { actions });
+			if (settings.afterSave === 'open') report(backend.open?.(file.id));
+			if (settings.afterSave === 'reveal') report(backend.reveal?.(file.id));
+			history = await backend.history();
 		} catch (err) {
 			toasts.error(errorMessage(err));
 		} finally {
@@ -87,9 +105,8 @@
 
 	async function copyImage() {
 		try {
-			const image = api.render(payload, 'png', settings.scale);
 			// Passing the promise keeps the clipboard write inside the click, which Safari requires
-			await navigator.clipboard.write([new ClipboardItem({ 'image/png': image })]);
+			await navigator.clipboard.write([new ClipboardItem({ 'image/png': backend.image(payload, settings.scale) })]);
 			toasts.show('Copied the receipt as an image');
 		} catch (err) {
 			toasts.error(errorMessage(err));
@@ -98,7 +115,7 @@
 
 	async function editSaved(entry: HistoryEntry) {
 		try {
-			const { receipt } = await api.saved(entry.id);
+			const receipt = await backend.saved(entry.id);
 			historyOpen = false;
 			replace(toDraft(receipt), `Editing ${entry.filename}`);
 		} catch (err) {
@@ -108,7 +125,21 @@
 
 	async function forget(entry: HistoryEntry) {
 		history = history.filter((h) => h.id !== entry.id);
-		await api.forget(entry.id).catch((e) => toasts.error(errorMessage(e)));
+		await report(backend.forget(entry.id));
+	}
+
+	async function chooseFolder() {
+		try {
+			const chosen = await backend.chooseFolder?.();
+			if (chosen) await changeSettings({ saveDir: chosen });
+		} catch (err) {
+			toasts.error(errorMessage(err));
+		}
+	}
+
+	async function useDownloads() {
+		await report(backend.clearFolder?.());
+		await changeSettings({ saveDir: '' });
 	}
 
 	function importJson() {
@@ -158,7 +189,7 @@
 
 <div class="app">
 	<header class="top rise">
-		<span class="brand">Receipt Studio</span>
+		<span class="brand">Stub</span>
 
 		<nav class="nav">
 			<Menu bind:open={newOpen} width={232}>
@@ -207,11 +238,11 @@
 				format={settings.format}
 				{saving}
 				{folder}
-				chrome={data.chrome}
+				images={data.images}
 				onsave={() => save()}
 				onformat={(format) => changeSettings({ format })}
 				oncopy={copyImage}
-				onfolder={openFolder}
+				onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
 			/>
 		</nav>
 	</header>
@@ -228,33 +259,40 @@
 
 <SettingsDialog
 	bind:open={settingsOpen}
+	mode={data.mode}
 	{settings}
 	{folder}
-	canChoose={data.canChoose}
-	chrome={data.chrome}
+	{canChoose}
+	images={data.images}
 	revealLabel={data.revealLabel}
 	onchange={changeSettings}
-	onfolder={openFolder}
+	onchoose={chooseFolder}
+	onclear={useDownloads}
+	onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
 />
-<ApiDialog bind:open={apiOpen} receipt={payload} format={settings.format} />
+<ApiDialog bind:open={apiOpen} receipt={payload} format={settings.format} mode={data.mode} sitekey={data.turnstileSiteKey} />
 <HistoryDialog
 	bind:open={historyOpen}
 	entries={history}
 	{folder}
 	revealLabel={data.revealLabel}
 	onedit={editSaved}
-	onopen={(entry) => openFile(entry.id)}
-	onreveal={(entry) => revealFile(entry.id)}
 	onforget={forget}
-	onfolder={openFolder}
+	onopen={backend.open ? (entry) => report(backend.open?.(entry.id)) : undefined}
+	onreveal={backend.reveal ? (entry) => report(backend.reveal?.(entry.id)) : undefined}
+	onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
+	ondownload={backend.download ? (entry) => report(backend.download?.(entry.id)) : undefined}
 />
 <Toasts />
 
 <style>
+	/* minmax(0, 1fr) so a wide header can't make the whole page wider than the screen */
 	.app {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		grid-template-rows: 60px minmax(0, 1fr);
 		height: 100vh;
+		height: 100dvh;
 	}
 
 	.top {
@@ -310,10 +348,12 @@
 		background: var(--canvas);
 	}
 
+	/* Preview on top, editor below. `order` rather than column-reverse, which opens scrolled
+	   to the bottom of the editor. */
 	@media (max-width: 900px) {
 		.main {
 			display: flex;
-			flex-direction: column-reverse;
+			flex-direction: column;
 			overflow-y: auto;
 		}
 
@@ -322,6 +362,7 @@
 		}
 
 		.canvas {
+			order: -1;
 			flex: none;
 			height: 62vh;
 			margin: 0 12px;
@@ -329,6 +370,48 @@
 
 		.nav {
 			gap: 14px;
+		}
+	}
+
+	/* Phones: Stub and Save on the first row, the other links on the second */
+	@media (max-width: 600px) {
+		.app {
+			grid-template-rows: auto minmax(0, 1fr);
+		}
+
+		.top {
+			flex-wrap: wrap;
+			justify-content: flex-start;
+			column-gap: 18px;
+			row-gap: 2px;
+			padding: 10px 12px 6px 16px;
+		}
+
+		.brand {
+			margin-right: auto;
+		}
+
+		.nav {
+			display: contents;
+		}
+
+		.nav > :global(*) {
+			order: 3;
+		}
+
+		.nav > :global(.save) {
+			order: 1;
+		}
+
+		.nav > :global(.toggle) {
+			margin-left: auto;
+		}
+
+		.nav > .sep {
+			order: 2;
+			flex-basis: 100%;
+			height: 0;
+			margin: 0;
 		}
 	}
 </style>

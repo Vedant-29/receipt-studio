@@ -8,16 +8,17 @@
 	interface Props {
 		format: OutputFormat;
 		saving: boolean;
-		/** Without Chrome only HTML can be made */
-		chrome: boolean;
+		/** Without Chrome (local app) only HTML can be made */
+		images: boolean;
 		folder: string;
 		onsave: () => void;
 		onformat: (format: OutputFormat) => void;
 		oncopy: () => void;
-		onfolder: () => void;
+		/** Local app only: open the save folder */
+		onfolder?: () => void;
 	}
 
-	let { format, saving, chrome, folder, onsave, onformat, oncopy, onfolder }: Props = $props();
+	let { format, saving, images, folder, onsave, onformat, oncopy, onfolder }: Props = $props();
 	let open = $state(false);
 
 	const FORMATS: { value: OutputFormat; label: string; detail: string }[] = [
@@ -44,7 +45,7 @@
 					type="button"
 					role="menuitemradio"
 					aria-checked={f.value === format}
-					disabled={!chrome && f.value !== 'html'}
+					disabled={!images && f.value !== 'html'}
 					onclick={() => {
 						close();
 						onformat(f.value);
@@ -60,21 +61,23 @@
 				class="menu-item"
 				type="button"
 				role="menuitem"
-				disabled={!chrome}
+				disabled={!images}
 				onclick={() => {
 					close();
 					oncopy();
 				}}>Copy as image</button
 			>
-			<button
-				class="menu-item"
-				type="button"
-				role="menuitem"
-				onclick={() => {
-					close();
-					onfolder();
-				}}>Open folder <span class="meta folder">{folder}</span></button
-			>
+			{#if onfolder}
+				<button
+					class="menu-item"
+					type="button"
+					role="menuitem"
+					onclick={() => {
+						close();
+						onfolder();
+					}}>Open folder <span class="meta folder">{folder}</span></button
+				>
+			{/if}
 		{/snippet}
 	</Menu>
 
@@ -114,6 +117,12 @@
 		overflow: hidden;
 		max-width: 150px;
 		text-overflow: ellipsis;
+	}
+
+	@media (max-width: 600px) {
+		.kbd {
+			display: none;
+		}
 	}
 
 	.spinner {

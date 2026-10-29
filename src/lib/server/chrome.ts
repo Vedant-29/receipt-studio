@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer, { type Browser } from 'puppeteer-core';
+import type { CaptureFormat } from '#lib/platform/types.js';
+import { UnavailableError } from './errors';
 
 // PNG, JPEG and PDF output is rendered by the Chrome that's already installed, running headless.
 // puppeteer-core never downloads a browser of its own.
@@ -42,12 +44,6 @@ export function findChrome(): string | null {
 	return (CANDIDATES[process.platform] ?? []).find((path) => existsSync(path)) ?? null;
 }
 
-export class ChromeMissingError extends Error {
-	constructor() {
-		super('PNG, JPEG and PDF need Google Chrome, Chromium, Edge or Brave. Install one, or set CHROME_PATH to its executable.');
-	}
-}
-
 let browser: Promise<Browser> | null = null;
 let idle: ReturnType<typeof setTimeout> | undefined;
 
@@ -56,7 +52,11 @@ async function getBrowser(): Promise<Browser> {
 	if (existing?.connected) return existing;
 
 	const executablePath = findChrome();
-	if (!executablePath) throw new ChromeMissingError();
+	if (!executablePath) {
+		throw new UnavailableError(
+			'PNG, JPEG and PDF need Google Chrome, Chromium, Edge or Brave. Install one, or set CHROME_PATH to its executable.'
+		);
+	}
 	browser = puppeteer.launch({
 		executablePath,
 		headless: true,
@@ -79,8 +79,6 @@ function closeWhenIdle() {
 	}, 5 * 60_000);
 	idle.unref();
 }
-
-export type CaptureFormat = 'png' | 'jpeg' | 'pdf';
 
 /** Renders a document containing a #receipt element. Images are cropped to it; PDFs get a page exactly its size. */
 export async function capture(html: string, format: CaptureFormat, scale = 2): Promise<Uint8Array> {

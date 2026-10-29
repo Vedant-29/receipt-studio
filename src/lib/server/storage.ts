@@ -12,13 +12,15 @@ import {
 	type OutputFormat,
 	type Receipt
 } from '#lib/receipt/index.js';
+import { fileBase, numbered } from '#lib/filename.js';
 import type { HistoryEntry, SavedFile, Settings } from '#lib/types.js';
+import { capture } from './chrome';
 import { produce, EXTENSIONS } from './produce';
 
 // Everything the app remembers lives in plain JSON files under ./data (git-ignored):
 // settings.json, draft.json, history.json and receipts/<id>.json for re-opening saves.
 
-const DATA_DIR = resolve(process.env.RECEIPT_STUDIO_DATA ?? 'data');
+const DATA_DIR = resolve(process.env.STUB_DATA ?? 'data');
 const HISTORY_LIMIT = 200;
 
 const DEFAULT_SETTINGS: Settings = {
@@ -135,35 +137,12 @@ function addHistoryEntry(entry: HistoryEntry, receipt: Receipt): Promise<void> {
 
 // ---------- saving receipts ----------
 
-function slug(value: string | undefined): string {
-	return (value ?? '')
-		.normalize('NFKD')
-		.replace(/[̀-ͯ]/g, '')
-		.toLowerCase()
-		.replace(/&/g, ' and ')
-		.replace(/[^a-z0-9]+/g, '-')
-		.slice(0, 48)
-		.replace(/^-+|-+$/g, '');
-}
-
-/** "fern-and-fig-cafe-0042", or a cleaned-up custom name */
-function fileBase(receipt: Receipt, custom?: string): string {
-	const named = custom
-		?.replace(/\.(png|jpe?g|pdf|html?)$/i, '')
-		.replace(/[/\\:*?"<>|\u0000-\u001f]+/g, '-')
-		.trim()
-		.slice(0, 100);
-	if (named) return named;
-	const c = receipt.content;
-	return [slug(c.store?.name) || 'receipt', slug(c.orderNumber) || new Date().toISOString().slice(0, 10)].join('-');
-}
-
 /** Writes without overwriting: name.png, name-2.png, name-3.png… */
 async function writeUnique(dir: string, base: string, ext: string, data: Uint8Array | string): Promise<string> {
 	try {
 		await mkdir(dir, { recursive: true });
 		for (let n = 1; n < 10_000; n++) {
-			const path = join(dir, n === 1 ? `${base}.${ext}` : `${base}-${n}.${ext}`);
+			const path = join(dir, numbered(base, ext, n));
 			try {
 				await writeFile(path, data, { flag: 'wx' });
 				return path;
@@ -191,7 +170,7 @@ export async function saveReceipt(
 	opts: { origin: string; scale?: number; filename?: string }
 ): Promise<SavedFile> {
 	const settings = await getSettings();
-	const data = await produce(receipt, format, { origin: opts.origin, scale: opts.scale ?? settings.scale });
+	const data = await produce(receipt, format, { origin: opts.origin, scale: opts.scale ?? settings.scale, capture });
 	const path = await writeUnique(resolveDir(settings.saveDir), fileBase(receipt, opts.filename), EXTENSIONS[format], data);
 
 	const c = receipt.content;

@@ -8,17 +8,31 @@
 	interface Props {
 		open?: boolean;
 		entries: HistoryEntry[];
+		/** Where saves go, for the footer */
 		folder: string;
 		revealLabel: string;
 		onedit: (entry: HistoryEntry) => void;
-		onopen: (entry: HistoryEntry) => void;
-		onreveal: (entry: HistoryEntry) => void;
 		onforget: (entry: HistoryEntry) => void;
-		onfolder: () => void;
+		/** Local app: the files are on disk */
+		onopen?: (entry: HistoryEntry) => void;
+		onreveal?: (entry: HistoryEntry) => void;
+		onfolder?: () => void;
+		/** Hosted version: make the file again */
+		ondownload?: (entry: HistoryEntry) => void;
 	}
 
-	let { open = $bindable(false), entries, folder, revealLabel, onedit, onopen, onreveal, onforget, onfolder }: Props =
-		$props();
+	let {
+		open = $bindable(false),
+		entries,
+		folder,
+		revealLabel,
+		onedit,
+		onforget,
+		onopen,
+		onreveal,
+		onfolder,
+		ondownload
+	}: Props = $props();
 
 	function ago(iso: string): string {
 		const then = new Date(iso);
@@ -45,8 +59,9 @@
 						<span class="when num">{ago(entry.createdAt)}</span>
 					</button>
 					<span class="actions">
-						<button class="quiet" type="button" onclick={() => onopen(entry)}>Open</button>
-						<button class="quiet" type="button" onclick={() => onreveal(entry)}>{revealLabel}</button>
+						{#if onopen}<button class="quiet" type="button" onclick={() => onopen(entry)}>Open</button>{/if}
+						{#if onreveal}<button class="quiet" type="button" onclick={() => onreveal(entry)}>{revealLabel}</button>{/if}
+						{#if ondownload}<button class="quiet" type="button" onclick={() => ondownload(entry)}>Download</button>{/if}
 						<button class="icon-btn" type="button" aria-label="Remove from this list" onclick={() => onforget(entry)}>
 							<X size={13} />
 						</button>
@@ -57,8 +72,12 @@
 	{/if}
 
 	{#snippet footer()}
-		<code class="folder">{folder}</code>
-		<button class="quiet" type="button" onclick={onfolder}>Open folder</button>
+		{#if onfolder}
+			<code class="folder">{folder}</code>
+			<button class="quiet" type="button" onclick={onfolder}>Open folder</button>
+		{:else}
+			<span class="folder">Kept in this browser. Files went to {folder}.</span>
+		{/if}
 	{/snippet}
 </Dialog>
 

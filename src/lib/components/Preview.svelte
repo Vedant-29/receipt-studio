@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
+	import { tick, untrack } from 'svelte';
 	import { TEMPLATE_INFO, TEMPLATES, type TemplateId } from '#lib/receipt/index.js';
 	import Tabs from './Tabs.svelte';
 
@@ -8,20 +9,38 @@
 
 	const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 	let zoom = $state(1);
+	let scroller: HTMLElement | undefined = $state();
+	let paper: HTMLElement | undefined = $state();
 
 	function step(direction: 1 | -1) {
 		const i = Math.max(0, ZOOMS.indexOf(zoom));
 		zoom = ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, i + direction))];
 	}
 
+	/** Phones have no room for the zoom buttons, so each template starts zoomed out far enough to fit across */
+	async function fit() {
+		if (!scroller || !paper || !matchMedia('(max-width: 600px)').matches) return;
+		zoom = 1;
+		await tick();
+		const stage = getComputedStyle(paper.parentElement!);
+		const room = scroller.clientWidth - parseFloat(stage.paddingLeft) - parseFloat(stage.paddingRight);
+		const width = paper.getBoundingClientRect().width;
+		zoom = ZOOMS.findLast((z) => z <= 1 && width * z <= room) ?? ZOOMS[0];
+	}
+
+	$effect(() => {
+		void template;
+		untrack(fit);
+	});
+
 	const options = TEMPLATES.map((id) => ({ value: id, label: TEMPLATE_INFO[id].name, title: TEMPLATE_INFO[id].description }));
 </script>
 
 <div class="preview">
-	<div class="scroll">
+	<div class="scroll" bind:this={scroller}>
 		<div class="stage">
 			<!-- The renderer escapes every value; this is the same HTML the API returns -->
-			<div class="paper" style:zoom>{@html html}</div>
+			<div class="paper" style:zoom bind:this={paper}>{@html html}</div>
 		</div>
 	</div>
 
@@ -62,10 +81,14 @@
 		filter: var(--paper-shadow);
 	}
 
+	/* With left: 50% an auto width is capped at half the preview, so the tabs wrapped on
+	   narrower windows. max-content keeps the bar on one line while it fits. */
 	.bar {
 		position: absolute;
 		bottom: 16px;
 		left: 50%;
+		width: max-content;
+		max-width: calc(100% - 32px);
 		display: flex;
 		align-items: center;
 		gap: 2px;
@@ -90,5 +113,17 @@
 		justify-content: center;
 		min-width: 44px;
 		height: 28px;
+	}
+
+	@media (max-width: 600px) {
+		.stage {
+			padding: 32px 16px 88px;
+		}
+
+		.bar .sep,
+		.bar .icon-btn,
+		.bar .zoom {
+			display: none;
+		}
 	}
 </style>
