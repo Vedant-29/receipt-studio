@@ -33,6 +33,7 @@
 		"qrcode": "^1.5.4"
 	},
 	"description": "A local receipt maker: edit in the browser, save PNG, JPEG, PDF or HTML straight to a folder, or call the same thing over HTTP.",
+	"license": "MIT",
 	"engines": {
 		"node": ">=20"
 	}

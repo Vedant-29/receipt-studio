@@ -106,3 +106,7 @@ All optional.
 - Logo marks are made from [Lucide](https://lucide.dev) icons (ISC).
 - Receipt fonts come from Google Fonts through [Fontsource](https://fontsource.org), under the SIL Open Font License (see `static/fonts/licenses`). The interface is set in [Geist](https://vercel.com/font).
 - Barcodes are encoded with [JsBarcode](https://github.com/lindell/JsBarcode) and QR codes with [node-qrcode](https://github.com/soldair/node-qrcode).
+
+## License
+
+MIT. See [LICENSE](LICENSE). The bundled fonts keep their own SIL Open Font License.
