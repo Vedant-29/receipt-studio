@@ -24,3 +24,7 @@ vite.config.ts.timestamp-*
 
 # App data: settings, draft and save history
 /data
+
+# Agent instructions, kept local
+AGENTS.md
+CLAUDE.md
