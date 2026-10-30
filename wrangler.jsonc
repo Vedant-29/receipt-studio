@@ -1,7 +1,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	// stub.vedantagrw.com. Deployed from a machine with `npm run deploy`; the GitHub repo
-	// doesn't deploy anything. The Cloudflare account comes from CLOUDFLARE_ACCOUNT_ID.
+	// stub.vedantagrw.com. Cloudflare builds and deploys each push to main (Workers Builds);
+	// `npm run deploy` works by hand too, with the account from CLOUDFLARE_ACCOUNT_ID.
 	"name": "stub",
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"compatibility_date": "2026-10-01",

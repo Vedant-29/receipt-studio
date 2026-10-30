@@ -112,8 +112,9 @@ Locally they go in `.dev.vars`, which git ignores. In production they're Worker 
 1. Create a Supabase project, then `npx supabase link --project-ref <ref>` and `npx supabase db push`. That applies [`supabase/migrations`](supabase/migrations): the tables, their row level security, and the functions that make and check API keys.
 2. In Google Cloud, create an OAuth client of type Web application with the redirect URI `https://<ref>.supabase.co/auth/v1/callback`. In Supabase, under Authentication: enable Google with that client's ID and secret, set the site URL to your domain, add `https://<your domain>/auth/callback` (and `http://localhost:4545/auth/callback` for local work) to the redirect URLs, and turn off email sign-in.
 3. Change the custom domain under `routes` in `wrangler.jsonc`. Store the settings with `npx wrangler secret put SUPABASE_URL` and `npx wrangler secret put SUPABASE_PUBLISHABLE_KEY`, then run `npm run deploy`.
+4. To deploy on every push instead, connect the repository in the Worker's settings under Builds: build command `npm run build`, deploy command `npx wrangler deploy`, and a `NODE_VERSION` build variable of 22.17 or newer. The settings stay Worker secrets, and deploys keep them.
 
-Deploys run from your machine with wrangler. The repository has no deploy workflow, so pushing to it changes nothing live.
+stub.vedantagrw.com deploys this way: each push to `main` is built and deployed by Cloudflare. There's no GitHub Actions workflow and no Cloudflare token in GitHub.
 
 ## How it works
 
