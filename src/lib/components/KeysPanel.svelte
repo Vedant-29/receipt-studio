@@ -1,37 +1,39 @@
 <script lang="ts">
-	import { errorMessage } from '#lib/client.js';
+	import { api, errorMessage } from '#lib/client.js';
 	import { LIMITS } from '#lib/limits.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import { turnstileToken } from '#lib/turnstile.js';
+	import type { ApiKey } from '#lib/types.js';
 	import { noAutofill } from '#lib/ui.js';
-	import { loadKeys, saveKeys, type KnownKey } from '#lib/web-store.js';
 	import CopyButton from './CopyButton.svelte';
 
-	/** `fresh` is the key just made, shown once and used in the snippets until the dialog closes */
-	let { sitekey, fresh = $bindable() }: { sitekey: string; fresh?: string } = $props();
+	/** `fresh` is a key just made: shown once, and used in the API dialog's examples */
+	let { fresh = $bindable() }: { fresh?: string } = $props();
 
-	let keys = $state<KnownKey[]>(loadKeys());
+	let keys = $state<ApiKey[]>([]);
+	let loaded = $state(false);
 	let label = $state('');
 	let busy = $state(false);
-	let check: HTMLElement | undefined = $state();
 
+	const day = new Date().toISOString().slice(0, 10);
 	const made = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+	const today = (key: ApiKey) => (key.day_start === day ? key.day_count : 0);
+
+	$effect(() => {
+		api.keys
+			.list()
+			.then((list) => (keys = list))
+			.catch((err) => toasts.error(errorMessage(err)))
+			.finally(() => (loaded = true));
+	});
 
 	async function create() {
-		if (!check || busy) return;
+		if (busy) return;
 		busy = true;
 		try {
-			const token = await turnstileToken(check, sitekey, 'create-key');
-			const res = await fetch('/api/keys', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ token, label: label.trim() || undefined })
-			});
-			const json = await res.json();
-			if (!res.ok) throw new Error(json.error ?? "Couldn't make a key");
-			fresh = json.key;
-			keys = [{ prefix: json.prefix, hash: json.hash, created: json.created, label: json.label }, ...keys];
-			saveKeys(keys);
+			const key = await api.keys.create(label.trim());
+			fresh = key.key;
+			const { key: _secret, ...rest } = key;
+			keys = [rest, ...keys];
 			label = '';
 		} catch (err) {
 			toasts.error(errorMessage(err));
@@ -40,82 +42,88 @@
 		}
 	}
 
-	async function revoke(key: KnownKey) {
-		const res = await fetch('/api/keys', {
-			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ hash: key.hash })
-		});
-		// Read the (empty) body, or Chrome lists the request as cancelled
-		await res.text().catch(() => '');
-		if (!res.ok && res.status !== 404) return toasts.error("Couldn't revoke that key. Try again.");
-		keys = keys.filter((k) => k.hash !== key.hash);
-		saveKeys(keys);
-		toasts.show(`Revoked ${key.prefix}…`);
+	async function revoke(key: ApiKey) {
+		try {
+			await api.keys.revoke(key.id);
+			keys = keys.filter((k) => k.id !== key.id);
+			toasts.show(`Revoked ${key.prefix}…`);
+		} catch (err) {
+			toasts.error(errorMessage(err));
+		}
 	}
+
+	const full = $derived(keys.length >= LIMITS.keysPerUser);
 </script>
 
-<div class="group">
-	{#if fresh}
-		<div class="prop fresh">
-			<code class="v key">{fresh}</code>
-			<CopyButton text={fresh} />
-		</div>
-	{/if}
+{#if fresh}
+	<div class="fresh">
+		<code>{fresh}</code>
+		<CopyButton text={fresh} />
+	</div>
+	<p class="note">Copy it now: this is the only time it's shown. Stub keeps a fingerprint of the key, not the key.</p>
+{/if}
 
-	{#each keys as key (key.hash)}
+<div class="group">
+	{#each keys as key (key.id)}
 		<div class="prop">
 			<code class="k">{key.prefix}…</code>
-			<span class="v muted made">{[key.label, `made ${made(key.created)}`].filter(Boolean).join(' · ')}</span>
+			<span class="v muted made">
+				{[key.label, `made ${made(key.created_at)}`, today(key) ? `${today(key)} today` : ''].filter(Boolean).join(' · ')}
+			</span>
 			<button class="quiet revoke" type="button" onclick={() => revoke(key)}>Revoke</button>
 		</div>
 	{/each}
-
-	<div class="prop">
-		<span class="k">New key</span>
-		<input {...noAutofill} class="v" name="key-label" bind:value={label} placeholder="Label, optional" maxlength="40" aria-label="Key label" />
-		<button class="quiet on" type="button" disabled={busy} onclick={create}>{busy ? 'Checking…' : 'Create key'}</button>
-	</div>
+	{#if loaded && !full}
+		<div class="prop">
+			<span class="k">New key</span>
+			<input
+				{...noAutofill}
+				class="v"
+				name="key-label"
+				bind:value={label}
+				placeholder="Label, optional"
+				maxlength="40"
+				aria-label="Key label"
+				onkeydown={(e) => e.key === 'Enter' && create()}
+			/>
+			<button class="quiet on" type="button" disabled={busy} onclick={create}>{busy ? 'Making…' : 'Create key'}</button>
+		</div>
+	{:else if full}
+		<p class="prop muted">You have {LIMITS.keysPerUser} keys. Revoke one to make another.</p>
+	{:else}
+		<p class="prop muted">Loading…</p>
+	{/if}
 </div>
-<!-- Cloudflare's check renders here, and only shows itself if it needs a click -->
-<div class="check" bind:this={check}></div>
-
-{#if fresh}
-	<p class="note">Copy it now. This is the only time it's shown; Stub keeps a fingerprint of the key, not the key.</p>
-{/if}
 <p class="note">
-	Each key can make {LIMITS.requestsPerMinute} requests a minute and {LIMITS.rendersPerKeyPerDay} images or PDFs a day.
-	HTML only counts toward the per-minute limit.
+	Each key can make {LIMITS.requestsPerMinute} requests a minute and {LIMITS.requestsPerDay.toLocaleString()} a day.
 </p>
 
 <style>
 	.fresh {
-		margin-top: 4px;
-		margin-bottom: 4px;
-		background: var(--chip);
-	}
-
-	.group .fresh:hover {
-		background: var(--chip);
-	}
-
-	.key {
 		display: flex;
 		align-items: center;
-		height: auto;
-		min-height: 32px;
-		padding: 6px 0;
+		gap: 12px;
+		margin-bottom: 4px;
+		padding: 8px 12px;
+		border-radius: 10px;
+		background: var(--chip);
+		box-shadow: inset 0 0 0 1px var(--border);
+	}
+
+	.fresh code {
+		flex: 1;
 		overflow-wrap: anywhere;
 		font-size: 12.5px;
 	}
 
-	.k {
-		font-size: 12.5px;
+	.fresh + .note {
+		margin: 6px 2px 12px;
 	}
 
 	code.k {
 		display: flex;
 		align-items: center;
+		font-size: 12.5px;
 	}
 
 	.made {
@@ -130,7 +138,8 @@
 		color: var(--danger);
 	}
 
-	.check:not(:empty) {
-		margin: 10px 0 0;
+	p.prop {
+		margin: 0;
+		align-items: center;
 	}
 </style>

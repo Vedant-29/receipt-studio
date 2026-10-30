@@ -22,7 +22,7 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# App data: settings, draft and save history
+# Runtime files left by the old local app
 /data
 
 # Agent instructions, kept local
@@ -31,4 +31,5 @@ CLAUDE.md
 
 # Wrangler local secrets and state
 .dev.vars*
+!.dev.vars.example
 .wrangler

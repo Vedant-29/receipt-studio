@@ -1,9 +1,9 @@
-// Fair-use limits for the hosted API, sized for Cloudflare's free plan. Browser Rendering gives
-// 10 browser-minutes a day and starts one new browser every 20 seconds, so images and PDFs
-// are rationed. HTML costs nothing to make and only counts toward the per-minute limit.
+// Limits for signed-in people and the API. The database enforces the same numbers
+// (supabase/migrations); the UI shows them.
 export const LIMITS = {
+	/** API requests per key */
 	requestsPerMinute: 30,
-	rendersPerKeyPerDay: 50,
-	rendersPerDay: 180,
-	keysPerIpPerDay: 5
+	requestsPerDay: 1000,
+	keysPerUser: 5,
+	receiptsPerUser: 1000
 } as const;

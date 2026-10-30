@@ -1,819 +1,271 @@
 <script lang="ts">
-	import ArrowRight from '@lucide/svelte/icons/arrow-right';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import File from '@lucide/svelte/icons/file';
-	import FileDown from '@lucide/svelte/icons/file-down';
-	import FileUp from '@lucide/svelte/icons/file-up';
-	import PanelRightOpen from '@lucide/svelte/icons/panel-right-open';
-	import Plus from '@lucide/svelte/icons/plus';
-	import Sparkles from '@lucide/svelte/icons/sparkles';
-	import { onMount } from 'svelte';
-	import { MediaQuery } from 'svelte/reactivity';
-	import { canChooseFolder, localBackend, webBackend } from '#lib/backend.js';
-	import { errorMessage } from '#lib/client.js';
-	import ApiDialog from '#lib/components/ApiDialog.svelte';
-	import Editor from '#lib/components/Editor.svelte';
-	import ImportDialog from '#lib/components/ImportDialog.svelte';
-	import JsonEditor from '#lib/components/JsonEditor.svelte';
+	import '#lib/site.css';
 	import Mark from '#lib/components/Mark.svelte';
-	import Menu from '#lib/components/Menu.svelte';
-	import Preview from '#lib/components/Preview.svelte';
-	import SavedPanel from '#lib/components/SavedPanel.svelte';
-	import SaveControl from '#lib/components/SaveControl.svelte';
-	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
-	import ShortcutsDialog from '#lib/components/ShortcutsDialog.svelte';
-	import Tabs from '#lib/components/Tabs.svelte';
-	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
-	import Toasts from '#lib/components/Toasts.svelte';
-	import Tooltip from '#lib/components/Tooltip.svelte';
-	import { blankReceipt, increment, nextReceipt, receiptJson, toDraft, toPayload, type Draft } from '#lib/editor.js';
-	import {
-		normalizeReceipt,
-		renderReceipt,
-		sampleReceipt,
-		TEMPLATES,
-		type OutputFormat,
-		type Receipt
-	} from '#lib/receipt/index.js';
-	import { toasts } from '#lib/toast.svelte.js';
-	import type { HistoryEntry, Settings } from '#lib/types.js';
-	import { typing } from '#lib/ui.js';
-	import * as webStore from '#lib/web-store.js';
+	import SiteIcon from '#lib/components/SiteIcon.svelte';
+	import { LIMITS } from '#lib/limits.js';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
-	// The local app keeps its state on disk (through its server); the hosted version keeps it in this browser
-	// svelte-ignore state_referenced_locally
-	const cloud = data.mode === 'cloud';
-	const backend = cloud ? webBackend() : localBackend();
+	const REPO = 'https://github.com/Vedant-29/stub';
+	const TITLE = 'Stub: free online receipt maker and receipt API';
+	const DESC =
+		'Make a receipt in your browser and download it as PNG, JPEG, PDF or HTML. Four templates, tax, barcodes, QR codes, 28 currencies and an API. Free and open source.';
 
-	function firstDraft(): Draft {
-		const saved: unknown = cloud ? webStore.loadDraft() : data.draft;
-		if (saved) return toDraft(normalizeReceipt(saved));
-		const sample = sampleReceipt('default');
-		sample.style.edge = 'zigzag';
-		return toDraft(sample);
-	}
+	const home = $derived(`${data.origin}/`);
+	const endpoint = $derived(`${data.origin}/api/v1/receipt`);
 
-	/** Small per-browser choices about the layout: which editor and whether Saved is open */
-	function remember<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
-		try {
-			const value = localStorage.getItem(key) as T | null;
-			return value && allowed.includes(value) ? value : fallback;
-		} catch {
-			return fallback;
-		}
-	}
+	// For search engines: what Stub is, in their vocabulary
+	const structured = $derived(
+		JSON.stringify({
+			'@context': 'https://schema.org',
+			'@type': 'WebApplication',
+			name: 'Stub',
+			url: home,
+			description: DESC,
+			applicationCategory: 'BusinessApplication',
+			operatingSystem: 'Any',
+			browserRequirements: 'Requires JavaScript',
+			isAccessibleForFree: true,
+			offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+			license: 'https://opensource.org/licenses/MIT',
+			codeRepository: REPO
+		}).replace(/</g, '\\u003c')
+	);
 
-	function keep(key: string, value: string) {
-		try {
-			localStorage.setItem(key, value);
-		} catch {
-			// Private windows can refuse storage; the layout just won't be remembered
-		}
-	}
-
-	// svelte-ignore state_referenced_locally
-	let settings = $state<Settings>(cloud ? webStore.loadSettings() : (data.settings as Settings));
-	// svelte-ignore state_referenced_locally
-	let folder = $state(cloud ? settings.saveDir || 'Downloads' : data.folder);
-	// svelte-ignore state_referenced_locally
-	let history = $state<HistoryEntry[]>(data.history);
-	let draft = $state<Draft>(firstDraft());
-
-	let saving = $state(false);
-	let newOpen = $state(false);
-	let formatOpen = $state(false);
-	let moreOpen = $state(false);
-	let importOpen = $state(false);
-	let apiOpen = $state(false);
-	let settingsOpen = $state(false);
-	let shortcutsOpen = $state(false);
-
-	/** Form fields or the receipt's JSON */
-	let mode = $state(remember('stub:editor', 'form', ['form', 'json'] as const));
-	/** Desktop: the Saved sidebar, open or folded into a rail */
-	let savedOpen = $state(remember('stub:saved', 'closed', ['open', 'closed'] as const) === 'open');
-	/** Phones show one thing at a time */
-	let view = $state<'edit' | 'preview' | 'saved'>('edit');
-	const phone = new MediaQuery('max-width: 760px');
-	const showSaved = $derived(phone.current ? view === 'saved' : savedOpen);
-
-	$effect(() => keep('stub:editor', mode));
-	$effect(() => keep('stub:saved', savedOpen ? 'open' : 'closed'));
-
-	let preview: Preview | undefined = $state();
-
-	const html = $derived(renderReceipt(draft));
-	const payload = $derived(toPayload(draft));
-	// svelte-ignore state_referenced_locally
-	const canChoose = cloud ? canChooseFolder() : data.canChoose;
-
-	onMount(async () => {
-		if (cloud) history = await backend.history().catch(() => []);
-	});
-
-	// Keep the draft, so a refresh or closed tab never loses work
-	$effect(() => {
-		const snapshot = $state.snapshot(draft) as Receipt;
-		const timer = setTimeout(() => backend.saveDraft(snapshot), 400);
-		return () => clearTimeout(timer);
-	});
-
-	/** Swap in a different receipt, with a way back */
-	function replace(next: Draft, message: string) {
-		const previous = $state.snapshot(draft) as Draft;
-		draft = next;
-		toasts.show(message, { actions: [{ label: 'Undo', run: () => (draft = previous) }] });
-	}
-
-	async function changeSettings(patch: Partial<Settings>) {
-		const current = $state.snapshot(settings) as Settings;
-		settings = { ...current, ...patch };
-		try {
-			const res = await backend.updateSettings(current, patch);
-			settings = res.settings;
-			folder = res.folder;
-		} catch (err) {
-			toasts.error(errorMessage(err));
-		}
-	}
-
-	const report = (task: Promise<unknown> | undefined) => task?.catch((e) => toasts.error(errorMessage(e)));
-
-	async function save(format: OutputFormat = settings.format) {
-		if (saving) return;
-		saving = true;
-		try {
-			const file = await backend.save(payload, format, settings.scale);
-			const actions = [];
-			if (backend.open) actions.push({ label: 'Open', run: () => report(backend.open?.(file.id)) });
-			if (backend.reveal) actions.push({ label: data.revealLabel, run: () => report(backend.reveal?.(file.id)) });
-			toasts.show(cloud && !settings.saveDir ? `Downloaded ${file.filename}` : `Saved ${file.filename}`, { actions });
-			if (settings.afterSave === 'open') report(backend.open?.(file.id));
-			if (settings.afterSave === 'reveal') report(backend.reveal?.(file.id));
-			history = await backend.history();
-		} catch (err) {
-			toasts.error(errorMessage(err));
-		} finally {
-			saving = false;
-		}
-	}
-
-	async function copyImage() {
-		try {
-			// Passing the promise keeps the clipboard write inside the click, which Safari requires
-			await navigator.clipboard.write([new ClipboardItem({ 'image/png': backend.image(payload, settings.scale) })]);
-			toasts.show('Copied the receipt as an image');
-		} catch (err) {
-			toasts.error(errorMessage(err));
-		}
-	}
-
-	async function editSaved(entry: HistoryEntry) {
-		try {
-			const receipt = await backend.saved(entry.id);
-			replace(toDraft(receipt), `Editing ${entry.filename}`);
-			if (phone.current) view = 'edit';
-		} catch (err) {
-			toasts.error(errorMessage(err));
-		}
-	}
-
-	async function forget(entry: HistoryEntry) {
-		history = history.filter((h) => h.id !== entry.id);
-		await report(backend.forget(entry.id));
-	}
-
-	async function chooseFolder() {
-		try {
-			const chosen = await backend.chooseFolder?.();
-			if (chosen) await changeSettings({ saveDir: chosen });
-		} catch (err) {
-			toasts.error(errorMessage(err));
-		}
-	}
-
-	async function useDownloads() {
-		await report(backend.clearFolder?.());
-		await changeSettings({ saveDir: '' });
-	}
-
-	function exportJson() {
-		const blob = new Blob([receiptJson(payload)], { type: 'application/json' });
-		const link = document.createElement('a');
-		link.href = URL.createObjectURL(blob);
-		link.download = 'receipt.json';
-		link.click();
-		URL.revokeObjectURL(link.href);
-	}
-
-	function toggleSaved() {
-		if (phone.current) view = view === 'saved' ? 'edit' : 'saved';
-		else savedOpen = !savedOpen;
-	}
-
-	function toggleMode() {
-		mode = mode === 'form' ? 'json' : 'form';
-		if (phone.current) view = 'edit';
-	}
-
-	// The keys behind every data-keys hint, and the list in ShortcutsDialog. ⌘S works anywhere;
-	// single keys only while you're not typing, no dialog is open and no menu has them (menus
-	// take keys first). D (theme) lives in ThemeToggle.
-	const KEYS: Record<string, () => void> = {
-		'?': () => (shortcutsOpen = true),
-		n: () => (newOpen = !newOpen),
-		f: () => (formatOpen = !formatOpen),
-		j: toggleMode,
-		h: toggleSaved,
-		a: () => (apiOpen = true),
-		',': () => (settingsOpen = true),
-		'=': () => preview?.zoom(1),
-		'+': () => preview?.zoom(1),
-		'-': () => preview?.zoom(-1),
-		'0': () => preview?.actualSize(),
-		...Object.fromEntries(TEMPLATES.map((id, i) => [String(i + 1), () => (draft.template = id)]))
-	};
-
-	function onkeydown(e: KeyboardEvent) {
-		if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 's') {
-			e.preventDefault();
-			save();
-			return;
-		}
-		if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented || typing(e)) return;
-		if (document.querySelector('dialog[open]')) return;
-		const run = KEYS[e.key.toLowerCase()];
-		if (!run) return;
-		e.preventDefault();
-		run();
-	}
-
-	const nextOrder = $derived(draft.content.orderNumber?.trim() ? increment(draft.content.orderNumber.trim()) : '');
-	const newItems = $derived([
-		{
-			label: 'Next receipt',
-			sub: nextOrder ? `Order ${nextOrder}, same store` : 'Same store, fresh items',
-			key: 'n',
-			icon: ArrowRight,
-			run: () => replace(nextReceipt(draft), 'Started the next receipt')
-		},
-		{
-			label: 'Blank receipt',
-			sub: 'Empty, keeps the template and style',
-			key: 'b',
-			icon: File,
-			run: () => replace(blankReceipt(draft), 'Started a blank receipt')
-		},
-		{
-			label: 'Example',
-			sub: 'The Fern & Fig Café sample',
-			key: 'e',
-			icon: Sparkles,
-			run: () =>
-				replace(toDraft({ ...sampleReceipt(draft.template), style: $state.snapshot(draft.style) }), 'Loaded the example')
-		},
-		{
-			group: 'JSON',
-			label: 'Import JSON…',
-			sub: 'Paste it or open a .json file',
-			key: 'i',
-			icon: FileUp,
-			run: () => (importOpen = true)
-		},
-		{ label: 'Export JSON', sub: 'Download receipt.json', key: 'x', icon: FileDown, run: exportJson }
-	]);
-
-	const views = [
-		{ value: 'edit' as const, label: 'Edit' },
-		{ value: 'preview' as const, label: 'Preview' },
-		{ value: 'saved' as const, label: 'Saved' }
-	];
-	const modes = [
-		{ value: 'form' as const, label: 'Form' },
-		{ value: 'json' as const, label: 'JSON' }
-	];
+	const curl = $derived(
+		[
+			`curl -X POST ${endpoint} \\`,
+			`  -H 'Authorization: Bearer YOUR_API_KEY' \\`,
+			`  -H 'Content-Type: application/json' \\`,
+			`  -d '{`,
+			`    "template": "default",`,
+			`    "content": {`,
+			`      "store": { "name": "Corner Bakery" },`,
+			`      "items": [{ "name": "Croissant", "quantity": 2, "price": 3.2 }]`,
+			`    }`,
+			`  }' -o receipt.html`
+		].join('\n')
+	);
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:head>
+	<title>{TITLE}</title>
+	<meta name="description" content={DESC} />
+	<link rel="canonical" href={home} />
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content="Stub" />
+	<meta property="og:title" content="Stub, a free receipt maker" />
+	<meta property="og:description" content={DESC} />
+	<meta property="og:url" content={home} />
+	<meta property="og:image" content="{data.origin}/og.png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:image:alt" content="Stub's editor beside a finished café receipt" />
+	<meta name="twitter:card" content="summary_large_image" />
+	{@html `<script type="application/ld+json">${structured}</script>`}
+</svelte:head>
 
-<div class="app">
-	<header class="top rise">
-		<div class="lead">
-			<span class="brand"><span class="mark"><Mark /></span>Stub</span>
-			<div class="mode" data-tip="Edit as a form or as JSON" data-keys="J">
-				<Tabs segmented options={modes} bind:value={mode} label="Edit as" />
-			</div>
-		</div>
-		<span class="break"></span>
+<div class="site">
+	<div class="col-wide">
+		<header class="top">
+			<a href="#top" aria-label="Stub"><span class="mark"><Mark /></span></a>
+			<nav class="topnav" aria-label="Sections">
+				<a href="#templates">templates</a>
+				<a href="#details">details</a>
+				<a href="#api">api</a>
+				<a href="/faq">faq</a>
+				<a href="/app">open stub</a>
+			</nav>
+		</header>
+	</div>
 
-		<div class="views">
-			<Tabs segmented options={views} bind:value={view} label="View" />
-		</div>
+	<main id="top">
+		<div class="col-wide">
+			<section class="hero measure">
+				<h1>Make a receipt<br />in about a minute.</h1>
+				<p>
+					Stub is a receipt maker that runs in your browser. Pick a template, add what you sold, and download it as PNG,
+					JPEG, PDF or HTML.
+				</p>
+				<p class="ink">No account, no watermark, nothing to install.</p>
 
-		<nav class="links" aria-label="Stub">
-			<button class="ghost wide" type="button" data-tip="Make receipts from your own code" data-keys="A" onclick={() => (apiOpen = true)}
-				>API</button
-			>
-			<button class="ghost wide" type="button" data-tip="Saving, formats and shortcuts" data-keys="," onclick={() => (settingsOpen = true)}
-				>Settings</button
-			>
-			<ThemeToggle />
-			<!-- Phones have room for the view tabs, so the rest folds into a menu -->
-			<div class="more">
-				<Menu bind:open={moreOpen} width={196}>
-					{#snippet trigger({ toggle, open })}
-						<button class="icon-btn" class:on={open} type="button" aria-label="More" aria-haspopup="menu" aria-expanded={open} onclick={toggle}>
-							<Ellipsis size={16} />
-						</button>
-					{/snippet}
-					{#snippet children({ close })}
-						<button
-							class="menu-item"
-							type="button"
-							role="menuitem"
-							onclick={() => {
-								close();
-								toggleMode();
-							}}>{mode === 'form' ? 'Edit as JSON' : 'Edit as a form'}</button
-						>
-						<div class="menu-sep"></div>
-						<button
-							class="menu-item"
-							type="button"
-							role="menuitem"
-							onclick={() => {
-								close();
-								apiOpen = true;
-							}}>API</button
-						>
-						<button
-							class="menu-item"
-							type="button"
-							role="menuitem"
-							onclick={() => {
-								close();
-								settingsOpen = true;
-							}}>Settings</button
-						>
-					{/snippet}
-				</Menu>
-			</div>
-		</nav>
-
-		<div class="actions">
-			<Menu bind:open={newOpen} width={304}>
-				{#snippet trigger({ toggle, open })}
-					<button
-						class="secondary new"
-						class:on={open}
-						type="button"
-						aria-haspopup="menu"
-						aria-expanded={open}
-						data-tip="New receipt or JSON"
-						data-keys="N"
-						onclick={toggle}
-					>
-						<Plus size={14} />
-						New
-						<span class="chev" class:open><ChevronDown size={12} /></span>
-					</button>
-				{/snippet}
-				{#snippet children({ close })}
-					<p class="menu-label">Start</p>
-					{#each newItems as item (item.label)}
-						{@const Icon = item.icon}
-						{#if item.group}<p class="menu-label">{item.group}</p>{/if}
-						<button
-							class="menu-row"
-							type="button"
-							role="menuitem"
-							data-key={item.key}
-							onclick={() => {
-								close();
-								item.run();
-							}}
-						>
-							<span class="menu-icon"><Icon size={15} /></span>
-							<span class="menu-text">{item.label}<span class="menu-sub">{item.sub}</span></span>
-							<kbd class="kbd">{item.key.toUpperCase()}</kbd>
-						</button>
-					{/each}
-					<p class="menu-foot">
-						<kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd><span>move</span>
-						<kbd class="kbd">↵</kbd><span>choose</span>
-						<kbd class="kbd">Esc</kbd><span>close</span>
-					</p>
-				{/snippet}
-			</Menu>
-			<SaveControl
-				bind:open={formatOpen}
-				format={settings.format}
-				scale={settings.scale}
-				{saving}
-				{folder}
-				images={data.images}
-				onsave={() => save()}
-				onformat={(format) => changeSettings({ format })}
-				onscale={(scale) => changeSettings({ scale })}
-				oncopy={copyImage}
-				onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
-			/>
-		</div>
-	</header>
-
-	<main class="main" data-view={view}>
-		<aside class="panel rise" class:fill={mode === 'json'} style="--i: 1" aria-label="Editor">
-			{#if mode === 'form'}
-				<Editor bind:draft />
-			{:else}
-				<JsonEditor bind:draft />
-			{/if}
-		</aside>
-
-		<div class="work rise" style="--i: 2">
-			<section class="canvas card" aria-label="Preview">
-				<Preview bind:this={preview} {html} bind:template={draft.template} />
+				<div class="btns">
+					<a class="btn fill" href="/app">Make a receipt <SiteIcon name="arrow" /></a>
+					<a class="btn" href={REPO}><SiteIcon name="github" /> View on GitHub</a>
+				</div>
+				<p class="req">Free &amp; open source · Works in any modern browser</p>
 			</section>
 
-			<!-- Folded into a rail until opened; it grows open rather than appearing -->
-			<div class="side card" class:open={showSaved}>
-				<button
-					class="rail"
-					type="button"
-					inert={showSaved}
-					aria-label="Show saved receipts"
-					aria-expanded={showSaved}
-					data-tip="Show saved receipts"
-					data-keys="H"
-					onclick={() => (savedOpen = true)}
+			<figure class="media">
+				<div class="bar"><i></i><i></i><i></i></div>
+				<!-- svelte-ignore a11y_media_has_caption -->
+				<video
+					class="motion"
+					width="1600"
+					height="1000"
+					autoplay
+					muted
+					loop
+					playsinline
+					preload="auto"
+					aria-label="Stub's editor: typing a store name, stepping through the four templates, then downloading a PDF."
 				>
-					<PanelRightOpen size={15} />
-					{#if history.length}<span class="count num">{history.length}</span>{/if}
-					<span class="rail-label">Saved</span>
-				</button>
-				<div class="side-panel" inert={!showSaved}>
-					<SavedPanel
-						entries={history}
-						{folder}
-						revealLabel={data.revealLabel}
-						load={(id) => backend.saved(id)}
-						onedit={editSaved}
-						onforget={forget}
-						onclose={phone.current ? undefined : () => (savedOpen = false)}
-						onopen={backend.open ? (entry) => report(backend.open?.(entry.id)) : undefined}
-						onreveal={backend.reveal ? (entry) => report(backend.reveal?.(entry.id)) : undefined}
-						onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
-						ondownload={backend.download ? (entry) => report(backend.download?.(entry.id)) : undefined}
+					<source src="/media/demo-dark.mp4" type="video/mp4" media="(prefers-color-scheme: dark)" />
+					<source src="/media/demo-light.mp4" type="video/mp4" />
+				</video>
+				<!-- With reduced motion, a still instead -->
+				<picture class="still">
+					<source srcset="/media/demo-dark.webp" media="(prefers-color-scheme: dark)" />
+					<img
+						src="/media/demo-light.webp"
+						width="1600"
+						height="1000"
+						loading="lazy"
+						alt="Stub's editor: the receipt's details in a form on the left, the finished receipt on the right."
 					/>
+				</picture>
+				<figcaption>Type on the left; the receipt follows. 1 to 4 switch templates, ⌘S downloads.</figcaption>
+			</figure>
+
+			<div class="rule"></div>
+
+			<section class="sec" id="templates">
+				<div class="split">
+					<div class="txt">
+						<div class="num">01</div>
+						<h2>Four templates, one receipt</h2>
+						<p>
+							Everything you type carries from one template to the next, so another look is a single key away:
+							<span class="hl">1</span> to <span class="hl">4</span>.
+						</p>
+						<ul class="flist">
+							<li><span class="key">Classic</span><span class="val">An itemised till receipt.</span></li>
+							<li><span class="key">Kiosk</span><span class="val">A self-service order slip.</span></li>
+							<li><span class="key">Barcode</span><span class="val">A code, coupon or loyalty slip.</span></li>
+							<li><span class="key">Ticket</span><span class="val">With a tear-off stub.</span></li>
+						</ul>
+					</div>
+					<figure class="receipt" style="--zoom: 0.86; --roll: 500px">
+						<div class="roll"><div class="paper">{@html data.receipts['self-service']}</div></div>
+						<figcaption>Kiosk, drawn by the same code as the editor.</figcaption>
+					</figure>
 				</div>
-			</div>
+			</section>
+
+			<section class="sec" id="details">
+				<div class="split rev">
+					<div class="txt">
+						<div class="num">02</div>
+						<h2>Everything a receipt has</h2>
+						<p>Fill in what you sold. Stub does the sums and gets the small print right.</p>
+						<ul class="flist">
+							<li><span class="key">Tax</span><span class="val">On top or included: VAT, GST, sales tax.</span></li>
+							<li><span class="key">Discounts and tips</span><span class="val">Per item, and a tip line.</span></li>
+							<li><span class="key">Cash and change</span><span class="val">What was handed over, and what came back.</span></li>
+							<li><span class="key">Currencies</span><span class="val">28, each written its own way.</span></li>
+							<li><span class="key">Codes</span><span class="val">Barcodes and QR codes that scan.</span></li>
+							<li><span class="key">Logo</span><span class="val">78 plain marks, or your own.</span></li>
+						</ul>
+					</div>
+					<figure class="receipt" style="--zoom: 0.86; --roll: 560px">
+						<div class="roll"><div class="paper">{@html data.receipts.barcode}</div></div>
+						<figcaption>A loyalty slip. Both codes scan.</figcaption>
+					</figure>
+				</div>
+			</section>
+
+			<section class="sec">
+				<div class="split">
+					<div class="txt">
+						<div class="num">03</div>
+						<h2>A form, or the JSON</h2>
+						<p>
+							Fill in the form, or press <span class="hl">J</span> and edit the receipt as data. Anything Stub would drop,
+							clamp or misread is flagged on its line, typos come with a suggestion, and the preview waits until it's
+							right.
+						</p>
+					</div>
+					<figure class="shot" style="--shot-max: 392px; --ratio: 784 / 984">
+						<picture>
+							<source srcset="/media/json-dark.webp" media="(prefers-color-scheme: dark)" />
+							<img
+								src="/media/json-light.webp"
+								width="784"
+								height="984"
+								loading="lazy"
+								decoding="async"
+								alt="The receipt as JSON, with a misspelled field flagged on line 6 and a suggestion to use address."
+							/>
+						</picture>
+						<figcaption>A typo, caught before it reaches the receipt.</figcaption>
+					</figure>
+				</div>
+			</section>
+
+			<section class="sec">
+				<div class="split rev">
+					<div class="txt">
+						<div class="num">04</div>
+						<h2>PNG, JPEG, PDF or HTML</h2>
+						<p>
+							Files are drawn in your browser at up to 3x and never uploaded. <span class="hl">⌘S</span> downloads in the
+							format you picked; the same menu copies the receipt as an image or exports its JSON.
+						</p>
+						<p>
+							Sign in with Google to keep every receipt. Each one saves as you type, and you can reopen, duplicate or
+							download it later.
+						</p>
+					</div>
+					<figure class="shot" style="--shot-max: 299px; --ratio: 598 / 648">
+						<picture>
+							<source srcset="/media/download-dark.webp" media="(prefers-color-scheme: dark)" />
+							<img
+								src="/media/download-light.webp"
+								width="598"
+								height="648"
+								loading="lazy"
+								decoding="async"
+								alt="The Download menu: PNG, JPEG, PDF and HTML, resolution, copy to the clipboard and export JSON."
+							/>
+						</picture>
+						<figcaption>The Download menu. Every choice has a key.</figcaption>
+					</figure>
+				</div>
+			</section>
+
+			<section class="sec measure" id="api">
+				<div class="num">05</div>
+				<h2>Receipts from your code</h2>
+				<p>
+					Make a key in your profile and send the receipt as JSON. The answer is the receipt as a standalone HTML page, the
+					same payload as Receiptable takes.
+				</p>
+				<pre><code>{curl}</code></pre>
+				<p>
+					{LIMITS.requestsPerMinute} requests a minute and {LIMITS.requestsPerDay.toLocaleString('en')} a day for each key,
+					free.
+				</p>
+			</section>
+
+			<div class="rule"></div>
+
+			<section class="sec measure">
+				<div class="num">06</div>
+				<h2>Make a receipt</h2>
+				<p>Free, open source, and yours to keep. Sign in only if you want Stub to keep them for you.</p>
+				<div class="btns">
+					<a class="btn fill" href="/app">Open Stub <SiteIcon name="arrow" /></a>
+					<a class="btn" href={REPO}><SiteIcon name="github" /> View on GitHub</a>
+				</div>
+			</section>
+
+			<p class="foot">
+				<a href="/faq">FAQ</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> ·
+				<a class="ghlink" href={REPO}><SiteIcon name="github" size={12} /> GitHub</a>
+				<br />
+				MIT licensed · Made by <a href="https://vedantagrw.com">Vedant Agarwal</a>
+			</p>
 		</div>
 	</main>
 </div>
-
-<SettingsDialog
-	bind:open={settingsOpen}
-	mode={data.mode}
-	{settings}
-	{folder}
-	{canChoose}
-	images={data.images}
-	revealLabel={data.revealLabel}
-	onchange={changeSettings}
-	onchoose={chooseFolder}
-	onclear={useDownloads}
-	onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
-	onshortcuts={() => (shortcutsOpen = true)}
-/>
-<ShortcutsDialog bind:open={shortcutsOpen} />
-<ApiDialog bind:open={apiOpen} receipt={payload} format={settings.format} mode={data.mode} sitekey={data.turnstileSiteKey} />
-<ImportDialog bind:open={importOpen} onimport={(receipt, source) => replace(toDraft(receipt), `Imported ${source}`)} />
-<Toasts />
-<Tooltip />
-
-<style>
-	/* minmax(0, 1fr) so a wide header can't make the whole page wider than the screen */
-	.app {
-		--editor: 392px;
-		--saved: 300px;
-		--rail: 44px;
-		display: grid;
-		grid-template-columns: minmax(0, 1fr);
-		grid-template-rows: auto minmax(0, 1fr);
-		height: 100vh;
-		height: 100dvh;
-	}
-
-	/* One row: Stub and the editor switch over the editor, everything else at the right edge */
-	.top {
-		/* Above the canvas, so the header's menus aren't painted underneath it */
-		position: relative;
-		z-index: 10;
-		display: flex;
-		align-items: center;
-		height: 56px;
-		padding: 0 12px;
-	}
-
-	.lead {
-		display: flex;
-		flex: none;
-		align-items: center;
-		gap: 16px;
-		width: var(--editor);
-		margin-right: auto;
-		padding-left: 16px;
-	}
-
-	/* One lockup: the mark on a tile (the same as the favicon), then the name */
-	.brand {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 15px;
-		font-weight: 600;
-		letter-spacing: -0.02em;
-		white-space: nowrap;
-	}
-
-	.mark {
-		display: grid;
-		flex: none;
-		width: 24px;
-		height: 24px;
-		place-items: center;
-		padding: 3px;
-		border-radius: 7px;
-		background: var(--foreground);
-		color: var(--surface);
-	}
-
-	.views,
-	.break,
-	.more {
-		display: none;
-	}
-
-	.links {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-	}
-
-	.links :global(.toggle) {
-		width: 32px;
-		height: 32px;
-	}
-
-	.actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-left: 12px;
-		padding-left: 12px;
-		box-shadow: inset 1px 0 0 var(--border);
-	}
-
-	.new .chev {
-		display: grid;
-		margin-left: -1px;
-		color: var(--muted-foreground);
-		transition: transform 300ms var(--ease);
-	}
-
-	.new .chev.open {
-		transform: rotate(180deg);
-	}
-
-	/* Editor | preview and the Saved sidebar, all the same height, 12px apart */
-	.main {
-		display: grid;
-		grid-template-columns: var(--editor) minmax(0, 1fr);
-		gap: 12px;
-		min-height: 0;
-		padding: 0 12px 12px;
-	}
-
-	/* The editor column scrolls on its own; its cards start level with the preview */
-	.panel {
-		display: flex;
-		flex-direction: column;
-		min-height: 0;
-		overflow-x: hidden;
-		overflow-y: auto;
-		padding-bottom: 40px;
-		scrollbar-width: thin;
-	}
-
-	/* JSON mode: one card from top to bottom, and the editor inside it scrolls */
-	.panel.fill {
-		overflow: hidden;
-		padding-bottom: 0;
-	}
-
-	.work {
-		display: flex;
-		min-width: 0;
-		min-height: 0;
-	}
-
-	.canvas {
-		position: relative;
-		flex: 1;
-		min-width: 0;
-		min-height: 0;
-		overflow: hidden;
-		background-color: var(--canvas);
-		background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
-		background-size: 18px 18px;
-		background-position: center;
-	}
-
-	/* The sidebar's card grows from the rail's width to the panel's; the rail fades out as the
-	   panel fades in, so nothing jumps */
-	.side {
-		position: relative;
-		flex: none;
-		width: var(--rail);
-		margin-left: 12px;
-		overflow: hidden;
-		transition: width 380ms var(--ease);
-	}
-
-	.side.open {
-		width: var(--saved);
-	}
-
-	.rail {
-		position: absolute;
-		inset: 0 auto 0 0;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 10px;
-		width: var(--rail);
-		padding: 14px 0;
-		border: 0;
-		background: none;
-		color: var(--muted-foreground);
-		transition:
-			opacity 220ms ease 160ms,
-			color 150ms ease,
-			background-color 150ms ease;
-	}
-
-	.rail:hover {
-		background: var(--muted);
-		color: var(--foreground);
-	}
-
-	.side.open .rail {
-		opacity: 0;
-		transition-delay: 0s;
-	}
-
-	.rail-label {
-		font-size: 12.5px;
-		letter-spacing: 0.02em;
-		writing-mode: vertical-rl;
-	}
-
-	.count {
-		min-width: 20px;
-		padding: 0 5px;
-		border-radius: 99px;
-		background: var(--tint);
-		font-size: 11.5px;
-		line-height: 18px;
-		text-align: center;
-	}
-
-	.side-panel {
-		position: absolute;
-		inset: 0 auto 0 0;
-		display: flex;
-		width: var(--saved);
-		opacity: 0;
-		transition: opacity 140ms ease;
-	}
-
-	.side.open .side-panel {
-		opacity: 1;
-		transition: opacity 260ms ease 140ms;
-	}
-
-	.side-panel > :global(.saved) {
-		flex: 1;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.side,
-		.rail,
-		.side-panel {
-			transition: none;
-		}
-	}
-
-	@media (max-width: 1180px) {
-		.app {
-			--editor: 340px;
-			--saved: 272px;
-		}
-
-		.wide {
-			padding: 0 8px;
-		}
-	}
-
-	/* Phones: Stub, New and Save on top; the view tabs and the rest under them; one view at a time */
-	@media (max-width: 760px) {
-		.top {
-			flex-wrap: wrap;
-			gap: 6px 8px;
-			height: auto;
-			padding: 10px 10px 8px 12px;
-		}
-
-		.lead {
-			width: auto;
-			padding-left: 4px;
-		}
-
-		.lead .mode,
-		.wide {
-			display: none;
-		}
-
-		.actions {
-			order: 1;
-			margin-left: 0;
-			padding-left: 0;
-			box-shadow: none;
-		}
-
-		.break {
-			display: block;
-			order: 2;
-			flex-basis: 100%;
-		}
-
-		.views {
-			display: block;
-			order: 3;
-			margin-right: auto;
-		}
-
-		.links {
-			order: 4;
-		}
-
-		.more {
-			display: flex;
-		}
-
-		.main {
-			display: flex;
-			flex-direction: column;
-			padding: 0 10px 10px;
-		}
-
-		.panel,
-		.work {
-			flex: 1;
-		}
-
-		.panel {
-			padding-bottom: 24px;
-		}
-
-		.side {
-			flex: 1;
-			width: auto;
-			margin: 0;
-			transition: none;
-		}
-
-		.rail {
-			display: none;
-		}
-
-		.side-panel {
-			position: static;
-			width: auto;
-			flex: 1;
-			opacity: 1;
-			transition: none;
-		}
-
-		.main:not([data-view='edit']) .panel,
-		.main[data-view='edit'] .work,
-		.main[data-view='preview'] .side,
-		.main[data-view='saved'] .canvas {
-			display: none;
-		}
-	}
-</style>

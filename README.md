@@ -1,10 +1,10 @@
 # Stub
 
-A receipt maker for the web. Edit a receipt in the browser, watch the preview update as you type, and save it as a PNG, JPEG, PDF or HTML file. The same receipts come from an HTTP API, so Postman, curl or your own code can make them too.
+A receipt maker for the web. Edit a receipt in the browser, watch the preview update as you type, and download it as a PNG, JPEG, PDF or HTML file. Sign in with Google to keep every receipt you make and to get API keys, so your own code can make receipts too.
 
-[Live site](https://stub.vedantagrw.com)
+[Live site](https://stub.vedantagrw.com) · [Open the editor](https://stub.vedantagrw.com/app)
 
-![Demo: renaming the store and adding an item while the preview follows, switching templates, dark mode, saving a PNG and the API dialog](docs/demo.gif)
+![Demo: typing a store name while the preview follows, stepping through the four templates, then choosing PDF and downloading](docs/demo.gif)
 
 The full clip is in [docs/demo.mp4](docs/demo.mp4).
 
@@ -14,22 +14,33 @@ The full clip is in [docs/demo.mp4](docs/demo.mp4).
 - 78 generic logo marks to pick from, or upload your own
 - Tax on top or included (VAT, GST), item discounts, tips, cash change and 28 currencies
 - Barcodes and QR codes that scan
+- Edit with a form or as JSON, checked as you type
+- Signed in: every receipt saved as you edit, with a searchable history
 - An HTTP API that takes the same payload as Receiptable
-- Light and dark mode (press `D`)
+- Light and dark mode, and a key for every action (press `?`)
 
 ## Using the website
 
-- Edit on the left. The preview on the right is what gets saved.
-- Press ⌘S (Ctrl S on Windows and Linux) to save in the format shown on the Save button. Files go to your Downloads folder. In Chrome and Edge you can instead pick a folder once in Settings, and saves go straight into it.
-- New starts the next receipt for the same store with the order number bumped, a blank one or the example. It also imports and exports a receipt as JSON.
-- Switch the editor from Form to JSON to edit the receipt as the same JSON the API takes. It's checked as you type: anything Stub would ignore, clamp or misread is flagged with its line, and the preview waits until the JSON is valid. The form flags values it can't use too.
-- The Saved rail on the right opens into a sidebar with a preview of each receipt you've saved in this browser. Click one to keep editing it.
-- Keyboard: ⌘S saves, `N` new, `F` format, `J` form or JSON, `H` saved receipts, `A` API, `,` settings, `D` dark mode, `1` to `4` templates, `+` `-` `0` zoom. `?` lists them all.
-- The draft, your settings and saved receipts are kept in this browser, so a refresh loses nothing. None of it is stored on a server.
+Signed out, you can make and download receipts. The receipt you're editing stays in this browser so a refresh loses nothing, but there's no history.
+
+Signed in with Google:
+
+- Receipts are saved to your account as you edit. There's nothing to remember to save.
+- The Receipts panel on the right lists them with a preview. Open one to keep editing, or download, duplicate or delete it from there.
+- Profile holds your API keys, and Delete account, which removes the account with every receipt and key.
+
+Either way:
+
+- Press ⌘S (Ctrl S on Windows and Linux) to download in the format on the Download button. Its menu picks PNG, JPEG, PDF or HTML, the resolution, copies the receipt as an image or exports its JSON.
+- New starts the next receipt for the same store with the order number bumped, a blank one, the example, or one imported from JSON.
+- Switch the editor panel from Form to JSON to edit the receipt as the JSON the API takes. Anything Stub would ignore, clamp or misread is flagged with its line, and the preview waits until it's valid.
+- Keyboard: ⌘S download, `N` new, `F` format, `J` form or JSON, `H` receipts, `P` profile, `A` API, `D` dark mode, `1` to `4` templates, `+` `-` `0` zoom. `?` lists them all.
+
+Files are made in your browser, never uploaded. Signed in, your receipts and a fingerprint of each API key are stored in the database, and only you can read them. The [privacy page](https://stub.vedantagrw.com/privacy) has the details.
 
 ## API
 
-The hosted API needs a free key. Open [stub.vedantagrw.com](https://stub.vedantagrw.com), click API, then Create key. The key is shown once, so copy it then. The same dialog shows the request for the receipt you're editing, as cURL, JavaScript or Python.
+Sign in at [stub.vedantagrw.com](https://stub.vedantagrw.com), open Profile and create a key. The key is shown once, so copy it then. The API dialog shows the request for the receipt you're editing, as cURL, JavaScript or Python.
 
 ```sh
 curl -X POST https://stub.vedantagrw.com/api/v1/receipt \
@@ -37,7 +48,6 @@ curl -X POST https://stub.vedantagrw.com/api/v1/receipt \
   -H 'Content-Type: application/json' \
   -d '{
     "template": "default",
-    "output": "png",
     "content": {
       "store": { "name": "Corner Bakery" },
       "currency": "inr",
@@ -45,101 +55,78 @@ curl -X POST https://stub.vedantagrw.com/api/v1/receipt \
       "tax": { "rate": 5, "label": "GST" }
     }
   }' \
-  -o receipt.png
+  -o receipt.html
 ```
 
-Send `Content-Type: application/json` with every POST and DELETE, or the request is refused. `X-API-Key: <key>` works in place of the Authorization header.
+The answer is the receipt as a standalone HTML page. For PNG, JPEG or PDF, open the receipt on the website and download it there, or turn the HTML into an image with any headless browser. `X-API-Key: <key>` and Receiptable's `X-AUTH-TOKEN: <key>` work in place of the Authorization header.
 
 | Field | What it does |
 |---|---|
 | `template` | `default`, `self-service`, `barcode` or `ticket` |
-| `output` | `html`, `png`, `jpeg` or `pdf`. The response is the file. |
 | `content` | What gets printed: store, items, tax, payment, codes and messages |
 | `style` | Font, sizes, colours, width in characters, and `"edge": "zigzag"` for torn edges |
-| `scale` | Image resolution from 1 to 4 (default 2) |
-| `save` | Local app only. `true` also writes the file into your save folder and returns `{ id, filename, path }` |
-| `filename` | Local app only. Name for the saved file |
 
 Other endpoints:
 
-- `GET /api/v1/receipt?template=ticket&output=png` returns an example of any template. HTML examples work without a key.
+- `GET /api/v1/receipt?template=ticket` returns an example of any template, no key needed.
 - `GET /api/v1/templates` lists the templates.
-- `DELETE /api/keys` with your key in the Authorization header revokes it. The API dialog can revoke keys made in that browser too.
-- `GET /api/health` reports whether the server can make images.
+- `GET /api/health` says whether the server is up and has accounts set up.
 
 The payload matches [Receiptable](https://github.com/tom-draper/receiptable)'s, so its docs apply too.
 
 ### Limits
 
-Stub runs on Cloudflare's free plan, so images and PDFs are rationed. HTML only counts toward the per-minute limit.
-
 | Limit | |
 |---|---|
-| Requests per key | 30 a minute |
-| Images and PDFs per key | 50 a day |
-| Images and PDFs for the whole site | 180 a day |
-| New keys per IP address | 5 a day |
+| Requests per key | 30 a minute and 1,000 a day |
+| Keys per person | 5 |
+| Receipts per person | 1,000 |
 
-Days reset at 00:00 UTC. Over a limit, the API answers `429` (or `503` when the whole site has run out) with a `Retry-After` header. The per-minute limit is approximate, since Cloudflare counts it separately in each data center. The local app has no limits.
-
-Each image or PDF starts a fresh browser, and the free plan starts one every 20 seconds. An image request that comes right after another one waits for that, so it can take about 20 seconds.
+Days reset at 00:00 UTC. Over a limit the API answers `429` with a `Retry-After` header, and every answer says what's left in `X-RateLimit-Remaining-Minute` and `X-RateLimit-Remaining-Day`.
 
 ## Running it locally
 
-The local app is the same editor and API on your own machine, with no keys and no limits. It saves straight into a folder you set once (`~/Documents/Receipts` by default), and its API can save files too.
-
-Requirements:
-
-- Node 20+
-- Google Chrome, Chromium, Edge or Brave for PNG, JPEG and PDF. HTML works without one.
+Requirements: Node 22.17 or newer. Accounts need a [Supabase](https://supabase.com) project; without one the app runs signed out only.
 
 ```sh
 git clone https://github.com/Vedant-29/stub.git
 cd stub
 npm install
-npm start
+cp .dev.vars.example .dev.vars   # then fill it in, or leave it empty for signed out only
+npm run dev
 ```
 
-`npm start` builds the app the first time (and again after the code changes), then opens http://localhost:4545. If that port is busy it uses the next free one. For hot reload while changing the code, run `npm run dev` instead.
+`npm run dev` serves http://localhost:4545 with hot reload, with Cloudflare's runtime emulated: the home page at `/` and the editor at `/app`. `npm run preview` builds the Worker and runs it on http://localhost:8787 exactly as it runs in production.
 
-The API is at http://localhost:4545/api/v1/receipt and takes the same requests as the hosted one, without a key.
+### Settings
 
-### Environment variables
+| Name | What it is |
+|---|---|
+| `SUPABASE_URL` | Your Supabase project's URL |
+| `SUPABASE_PUBLISHABLE_KEY` | Its publishable key. Public by design; it only reaches the Worker. |
 
-All optional, and all for the local app.
+Locally they go in `.dev.vars`, which git ignores. In production they're Worker secrets. There are no other secrets: the app never uses Supabase's secret key, so the database's row level security decides what every request can see.
 
-| Variable | Default | What it is for |
-|---|---|---|
-| `PORT` | `4545` | Port to listen on. The next free one is used if it's taken. |
-| `HOST` | `127.0.0.1` | Set to `0.0.0.0` to reach the app from other devices on your network |
-| `ALLOWED_HOSTS` | none | Extra hostnames to accept while on localhost, comma separated |
-| `PROTOCOL_HEADER` | none | Behind an HTTPS proxy, the header that carries the protocol, such as `x-forwarded-proto` |
-| `CHROME_PATH` | found automatically | Path to Chrome, Chromium, Edge or Brave |
-| `RECEIPTS_DIR` | `~/Documents/Receipts` | Save folder until you change it in Settings |
-| `STUB_DATA` | `./data` | Where settings, the draft and the save history are kept |
-| `OPEN` | none | Set to `0` so `npm start` doesn't open the browser |
+## Hosting your own
 
-## Deployment
+1. Create a Supabase project, then `npx supabase link --project-ref <ref>` and `npx supabase db push`. That applies [`supabase/migrations`](supabase/migrations): the tables, their row level security, and the functions that make and check API keys.
+2. In Google Cloud, create an OAuth client of type Web application with the redirect URI `https://<ref>.supabase.co/auth/v1/callback`. In Supabase, under Authentication: enable Google with that client's ID and secret, set the site URL to your domain, add `https://<your domain>/auth/callback` (and `http://localhost:4545/auth/callback` for local work) to the redirect URLs, and turn off email sign-in.
+3. Change the custom domain under `routes` in `wrangler.jsonc`. Store the settings with `npx wrangler secret put SUPABASE_URL` and `npx wrangler secret put SUPABASE_PUBLISHABLE_KEY`, then run `npm run deploy`.
 
-The website is a Cloudflare Worker. Every push to `main` runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which type-checks, builds with `npm run build:cloud` and deploys with wrangler. It needs two repository secrets, `CLOUDFLARE_API_TOKEN` (made from the "Edit Cloudflare Workers" token template) and `CLOUDFLARE_ACCOUNT_ID`. Without them the workflow builds and skips the deploy.
+Deploys run from your machine with wrangler. The repository has no deploy workflow, so pushing to it changes nothing live.
 
-To host your own copy:
+## How it works
 
-1. Create a KV namespace with `npx wrangler kv namespace create stub-keys` and put its id in `wrangler.jsonc`.
-2. Create a [Turnstile](https://developers.cloudflare.com/turnstile/) widget for your domain in managed mode. In `wrangler.jsonc`, set `TURNSTILE_SITE_KEY` to its site key and `TURNSTILE_HOSTNAMES` to your domain.
-3. Change the custom domain under `routes` in `wrangler.jsonc`, then run `npm run deploy`.
-4. Store the widget's secret with `npx wrangler secret put TURNSTILE_SECRET`.
-
-`npm run preview:cloud` runs the hosted build on your machine with wrangler. It reads `TURNSTILE_SECRET` from a `.dev.vars` file, which git ignores.
+- One SvelteKit app, running as a Cloudflare Worker. The home page, FAQ, privacy and terms are plain server-rendered HTML with no JavaScript; the editor at `/app` runs in the browser.
+- The page only talks to the Worker. The Worker talks to Supabase as the signed-in person, with their session from cookies the page can't read, so the database's row level security applies to everything it does.
+- The editor, preview and files all use the same renderer (`src/lib/receipt`), which turns a receipt into inline-styled HTML. Images and PDFs are drawn from that HTML in your browser.
+- API keys are `stub_` plus 32 random bytes, made in the database. Only their SHA-256 is kept, so a lost key can't be recovered: revoke it and make a new one.
 
 ## Notes
 
-- On the website, PNG, JPEG and PDF files are made in your browser. A PDF saved there is an image of the receipt, so its text can't be selected. The API and the local app make PDFs with Chrome, and those have real text.
-- The hosted API renders images with Cloudflare Browser Rendering. The local app uses your own Chrome through puppeteer-core (it never downloads a browser). The first save takes a second or two while Chrome starts, and Chrome closes again after five quiet minutes.
-- Stub stores only a SHA-256 fingerprint of each API key, so a lost key can't be recovered. Revoke it and make a new one.
-- Saved HTML files load their font from Google Fonts, so they look the same anywhere. Images and PDFs use the fonts bundled in `static/fonts`.
-- On macOS, the local app needs your terminal app to have access to `~/Documents` to save there (System Settings > Privacy & Security > Files and Folders). If a save fails, choose another folder in Settings.
-- With `HOST=0.0.0.0`, anyone on your network can use the local app and its API, including saving files. There's no login.
+- A PDF from Stub is an image of the receipt, so its text can't be selected.
+- Downloaded HTML files load their font from Google Fonts, so they look the same anywhere. The editor and images use the fonts bundled in `static/fonts`.
+- Logos given as a link may not appear in downloads, since the browser can't always fetch them. Upload the image instead.
 - The logo marks are generic on purpose. There are no real brand logos.
 
 ## Credits

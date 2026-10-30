@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import type { Snippet } from 'svelte';
 	import { now, type Draft } from '#lib/editor.js';
 	import {
 		computeTotals,
@@ -20,7 +21,8 @@
 	import Tabs from './Tabs.svelte';
 	import Toggle from './Toggle.svelte';
 
-	let { draft = $bindable() }: { draft: Draft } = $props();
+	/** lead: the panel's header (the Form and JSON switch), kept in view while the form scrolls */
+	let { draft = $bindable(), lead }: { draft: Draft; lead?: Snippet } = $props();
 
 	const c = $derived(draft.content);
 	const s = $derived(draft.style);
@@ -89,6 +91,7 @@
 {/snippet}
 
 <div class="editor">
+	{#if lead}<div class="head">{@render lead()}</div>{/if}
 	<Section title="Store" bind:open={open.store} hint={c.store.name} problems={problemsIn('content.store')}>
 		<label class="prop">
 			<span class="k">Name</span>
@@ -409,7 +412,18 @@
 
 <style>
 	.editor {
-		padding: 2px 0 0;
+		padding: 0;
+	}
+
+	.head {
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		display: flex;
+		align-items: center;
+		height: 52px;
+		padding: 0 12px;
+		background: var(--surface);
 	}
 
 	.picker {

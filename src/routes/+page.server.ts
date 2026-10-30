@@ -1,42 +1,21 @@
-import { platform } from '#platform';
-import type { StudioData } from '#lib/types.js';
+import { renderReceipt, sampleReceipt, TEMPLATES, type TemplateId } from '#lib/receipt/index.js';
 import type { PageServerLoad } from './$types';
 
-// Rendered in the browser only, so per-browser state (sections, theme, the hosted
-// version's saved receipts) can be read straight away
-export const ssr = false;
+// The home page: plain HTML for people and search engines, with no JavaScript to load.
+// Its receipts come from the same renderer as the editor, drawn once a day per Worker.
+export const csr = false;
 
-export const load: PageServerLoad = async (): Promise<StudioData> => {
-	const local = platform.local;
-	if (!local) {
-		return {
-			mode: 'cloud',
-			settings: null,
-			draft: null,
-			history: [],
-			folder: '',
-			canChoose: false,
-			revealLabel: '',
-			images: true,
-			turnstileSiteKey: platform.cloud?.turnstileSiteKey ?? ''
-		};
+let drawn: { day: string; receipts: Record<TemplateId, string> } | undefined;
+
+export const load: PageServerLoad = ({ url }) => {
+	const now = new Date();
+	const day = now.toISOString().slice(0, 10);
+	if (drawn?.day !== day) {
+		const receipts = Object.fromEntries(
+			// Without its id: the page shows several receipts
+			TEMPLATES.map((id) => [id, renderReceipt(sampleReceipt(id, now)).replace('<div id="receipt" ', '<div ')])
+		) as Record<TemplateId, string>;
+		drawn = { day, receipts };
 	}
-
-	const [settings, draft, history, canChoose] = await Promise.all([
-		local.getSettings(),
-		local.getDraft(),
-		local.getHistory(),
-		local.canChooseFolder()
-	]);
-	return {
-		mode: 'local',
-		settings,
-		draft,
-		history,
-		folder: local.tildify(local.resolveDir(settings.saveDir)),
-		canChoose,
-		revealLabel: local.revealLabel,
-		images: local.hasChrome(),
-		turnstileSiteKey: ''
-	};
+	return { origin: url.origin, receipts: drawn.receipts };
 };

@@ -1,5 +1,8 @@
-import type { OutputFormat, Receipt } from '#lib/receipt/index.js';
-import type { HistoryEntry, SavedFile, Settings, SettingsResponse } from '#lib/types.js';
+import type { Receipt } from '#lib/receipt/index.js';
+import type { ApiKey, NewApiKey, ReceiptSummary } from '#lib/types.js';
+
+// The page's calls to this site's own routes. The browser never talks to Supabase: the
+// Worker does, as the signed-in person, from their (HttpOnly) session cookies.
 
 async function failure(res: Response): Promise<Error> {
 	try {
@@ -9,11 +12,12 @@ async function failure(res: Response): Promise<Error> {
 	}
 }
 
-async function call<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
+async function call<T>(url: string, method = 'GET', body?: unknown, init?: RequestInit): Promise<T> {
 	const res = await fetch(url, {
 		method,
 		headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-		body: body === undefined ? undefined : JSON.stringify(body)
+		body: body === undefined ? undefined : JSON.stringify(body),
+		...init
 	});
 	if (!res.ok) throw await failure(res);
 	// Read even an empty 204: Chrome lists a response whose body was never read as cancelled
@@ -22,26 +26,23 @@ async function call<T>(url: string, method = 'GET', body?: unknown): Promise<T> 
 }
 
 export const api = {
-	save: (receipt: Receipt, output: OutputFormat, scale: number) =>
-		call<SavedFile>('/api/v1/receipt', 'POST', { ...receipt, output, scale, save: true }),
-
-	async render(receipt: Receipt, output: OutputFormat, scale: number): Promise<Blob> {
-		const res = await fetch('/api/v1/receipt', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ ...receipt, output, scale })
-		});
-		if (!res.ok) throw await failure(res);
-		return res.blob();
+	receipts: {
+		list: () => call<ReceiptSummary[]>('/api/receipts'),
+		get: (id: string) => call<ReceiptSummary & { receipt: Receipt }>(`/api/receipts/${id}`),
+		create: (receipt: Receipt) => call<ReceiptSummary>('/api/receipts', 'POST', { receipt }),
+		/** keepalive lets a last save finish while the tab closes */
+		update: (id: string, receipt: Receipt, keepalive = false) =>
+			call<ReceiptSummary>(`/api/receipts/${id}`, 'PUT', { receipt }, { keepalive }),
+		remove: (id: string) => call<void>(`/api/receipts/${id}`, 'DELETE')
 	},
-
-	settings: (patch: Partial<Settings>) => call<SettingsResponse>('/api/settings', 'PUT', patch),
-	chooseFolder: () => call<{ path: string | null }>('/api/settings/folder', 'POST'),
-	draft: (receipt: Receipt) => call<void>('/api/draft', 'PUT', receipt),
-	history: () => call<HistoryEntry[]>('/api/history'),
-	saved: (id: string) => call<{ entry: HistoryEntry; receipt: Receipt }>(`/api/history/${id}`),
-	forget: (id: string) => call<void>(`/api/history/${id}`, 'DELETE'),
-	files: (action: 'open' | 'reveal' | 'folder', id?: string) => call<void>('/api/files', 'POST', { action, id })
+	keys: {
+		list: () => call<ApiKey[]>('/api/keys'),
+		create: (label: string) => call<NewApiKey>('/api/keys', 'POST', { label }),
+		revoke: (id: string) => call<void>(`/api/keys/${id}`, 'DELETE')
+	},
+	signOut: () => call<void>('/auth/logout', 'POST'),
+	/** The account, every receipt and key, for good; signs out too */
+	deleteAccount: () => call<void>('/api/account', 'DELETE')
 };
 
 export const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));

@@ -4,19 +4,15 @@
 	"version": "1.0.0",
 	"type": "module",
 	"scripts": {
-		"start": "node scripts/start.js",
 		"dev": "vite dev",
 		"build": "vite build",
-		"build:cloud": "STUB_TARGET=cloudflare vite build",
-		"preview:cloud": "STUB_TARGET=cloudflare vite build && wrangler dev",
-		"deploy": "STUB_TARGET=cloudflare vite build && wrangler deploy",
+		"preview": "vite build && wrangler dev --port 8787 --infer-origin-from-routes=false",
+		"deploy": "vite build && wrangler deploy",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:cloud": "STUB_TARGET=cloudflare svelte-kit sync && STUB_TARGET=cloudflare svelte-check --tsconfig ./tsconfig.json",
 		"prepare": "svelte-kit sync || echo ''"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-cloudflare": "^8.0.1",
-		"@sveltejs/adapter-node": "^6.0.0",
 		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.2.0",
 		"@types/node": "^22",
@@ -31,17 +27,17 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"dependencies": {
-		"@cloudflare/puppeteer": "^1.4.0",
 		"@fontsource-variable/geist": "^5.3.0",
 		"@lucide/svelte": "^1.64.0",
+		"@supabase/ssr": "^0.12.7",
+		"@supabase/supabase-js": "^2.118.0",
 		"jsbarcode": "^3.12.3",
 		"lucide-static": "^1.64.0",
-		"puppeteer-core": "^25.16.0",
 		"qrcode": "^1.5.4"
 	},
-	"description": "A local receipt maker: edit in the browser, save PNG, JPEG, PDF or HTML straight to a folder, or call the same thing over HTTP.",
+	"description": "A receipt maker: edit in the browser, download PNG, JPEG, PDF or HTML, keep a history when signed in, and make receipts over HTTP.",
 	"license": "MIT",
 	"engines": {
-		"node": ">=20"
+		"node": ">=22.17"
 	}
 }

@@ -1,51 +1,54 @@
-import type { OutputFormat, Receipt } from '#lib/receipt/index.js';
+import type { OutputFormat, Receipt, TemplateId } from '#lib/receipt/index.js';
 
-export type AfterSave = 'nothing' | 'open' | 'reveal';
+/** Who's signed in, as the page sees it. Never includes tokens. */
+export interface SessionUser {
+	id: string;
+	email: string;
+	name: string;
+	/** Google profile picture (https), or empty */
+	avatar: string;
+}
 
-export interface Settings {
-	/** Where receipts are saved. May start with ~ */
-	saveDir: string;
+/** A receipt in the history list: enough to show it without loading the receipt itself */
+export interface ReceiptSummary {
+	id: string;
+	title: string;
+	total: string;
+	template: TemplateId;
+	updated_at: string;
+}
+
+export interface ApiKey {
+	id: string;
+	/** stub_ and the first 7 characters, to recognise it */
+	prefix: string;
+	label: string | null;
+	created_at: string;
+	last_used_at: string | null;
+	/** UTC date of day_count */
+	day_start: string | null;
+	day_count: number;
+}
+
+/** A key just made: the only time the whole key is ever shown */
+export interface NewApiKey extends ApiKey {
+	key: string;
+}
+
+/** Per-browser choices for downloads */
+export interface Prefs {
 	format: OutputFormat;
 	/** Pixel density for PNG and JPEG */
 	scale: 1 | 2 | 3;
-	afterSave: AfterSave;
 }
 
-export interface HistoryEntry {
-	id: string;
-	filename: string;
-	path: string;
-	format: OutputFormat;
-	createdAt: string;
-	title: string;
-	total: string;
-}
-
-export interface SavedFile {
-	id: string;
-	filename: string;
-	path: string;
-	format: OutputFormat;
-	bytes: number;
-}
-
-export interface SettingsResponse {
-	settings: Settings;
-	/** saveDir expanded and shortened with ~ for display */
-	folder: string;
-}
-
-/** What the page loads: the local app reads disk; the hosted version starts empty and uses browser storage */
-export interface StudioData {
-	mode: 'local' | 'cloud';
-	/** The local app's settings, draft and history come from disk; the hosted version keeps them in the browser */
-	settings: Settings | null;
-	draft: Receipt | null;
-	history: HistoryEntry[];
-	folder: string;
-	canChoose: boolean;
-	revealLabel: string;
-	/** Whether PNG, JPEG and PDF can be made */
-	images: boolean;
-	turnstileSiteKey: string;
+/** What the page loads from the server */
+export interface PageData {
+	user: SessionUser | null;
+	/** False when the server has no Supabase settings: the app runs signed out only */
+	accounts: boolean;
+	/** Signed in: the history, newest first */
+	history: ReceiptSummary[];
+	/** Signed in: the most recently edited receipt, opened in the editor */
+	latest: { id: string; receipt: Receipt } | null;
 }

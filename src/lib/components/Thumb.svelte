@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	// Saved receipts never change, so each one is drawn once per visit
+	// Each version of a receipt is drawn once per visit; an edit makes a new version
 	const drawn = new Map<string, Promise<string>>();
 </script>
 
@@ -8,10 +8,12 @@
 
 	interface Props {
 		id: string;
+		/** Changes when the receipt does (its updated_at) */
+		version: string;
 		load: (id: string) => Promise<Receipt>;
 	}
 
-	let { id, load }: Props = $props();
+	let { id, version, load }: Props = $props();
 
 	let box: HTMLElement | undefined = $state();
 	let paper: HTMLElement | undefined = $state();
@@ -22,7 +24,7 @@
 	// Drawn when it scrolls into view, so a long list doesn't render every receipt at once
 	$effect(() => {
 		if (!box) return;
-		const key = id;
+		const key = `${id}:${version}`;
 		const observer = new IntersectionObserver(
 			([entry]) => {
 				if (!entry.isIntersecting) return;
@@ -30,7 +32,7 @@
 				let task = drawn.get(key);
 				if (!task) {
 					// Without its id, so the page keeps a single #receipt (the preview's)
-					task = load(key).then((r) => renderReceipt(r).replace('<div id="receipt" ', '<div '));
+					task = load(id).then((r) => renderReceipt(r).replace('<div id="receipt" ', '<div '));
 					task.catch(() => drawn.delete(key));
 					drawn.set(key, task);
 				}

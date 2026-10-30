@@ -9,13 +9,13 @@
 		{
 			title: 'Anywhere',
 			keys: [
-				{ label: 'Save the receipt', keys: 'mod S' },
+				{ label: 'Download the receipt', keys: 'mod S' },
 				{ label: 'New receipt menu', keys: 'N' },
-				{ label: 'Format and resolution menu', keys: 'F' },
+				{ label: 'Download format menu', keys: 'F' },
 				{ label: 'Edit as a form or as JSON', keys: 'J' },
-				{ label: 'Show or hide saved receipts', keys: 'H' },
+				{ label: 'Show or hide your receipts', keys: 'H' },
+				{ label: 'Profile and API keys, or sign in', keys: 'P' },
 				{ label: 'API', keys: 'A' },
-				{ label: 'Settings', keys: ',' },
 				{ label: 'Light or dark theme', keys: 'D' },
 				{ label: 'This list', keys: '?' }
 			]
@@ -31,10 +31,9 @@
 		{
 			title: 'In the menus',
 			keys: [
-				{ label: 'Next, blank, example', keys: 'N B E' },
-				{ label: 'Import or export JSON', keys: 'I X' },
+				{ label: 'Next, blank, example, import', keys: 'N B E I' },
 				{ label: 'PNG, JPEG, PDF, HTML', keys: '1 2 3 4' },
-				{ label: 'Resolution, copy as image', keys: 'R C' },
+				{ label: 'Resolution, copy image, export JSON', keys: 'R C X' },
 				{ label: 'Move and choose', keys: '↑ ↓ enter' }
 			]
 		},

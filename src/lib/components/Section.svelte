@@ -18,7 +18,7 @@
 	let { title, open = $bindable(true), hint, problems = 0, actions, children }: Props = $props();
 </script>
 
-<section class="section card" class:closed={!open}>
+<section class="section" class:closed={!open}>
 	<div class="head">
 		<button class="toggle" type="button" aria-expanded={open} onclick={() => (open = !open)}>
 			<span class="title">{title}</span>
@@ -39,8 +39,14 @@
 </section>
 
 <style>
+	/* Each section is a tinted block inside the editor's card. Inside it, whatever tints on
+	   hover or when open (rows, items, chips) steps one shade further, so it still shows. */
 	.section {
-		padding: 4px 16px;
+		--muted: var(--accent);
+		margin: 0 10px;
+		padding: 4px 14px;
+		border-radius: 12px;
+		background: color-mix(in oklab, var(--foreground) 3.5%, var(--surface));
 		transition: padding 240ms var(--ease);
 	}
 
@@ -49,7 +55,7 @@
 	}
 
 	.section + :global(.section) {
-		margin-top: 10px;
+		margin-top: 8px;
 	}
 
 	.head {

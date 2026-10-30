@@ -1,74 +1,76 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import { platform } from '#platform';
-import { isTemplate, normalizeReceipt, sampleReceipt, type OutputFormat, type Receipt } from '#lib/receipt/index.js';
-import { failure, isCrossSite, parseOutput, problem, readBody } from '#lib/server/http.js';
-import { CONTENT_TYPES, EXTENSIONS, produce } from '#lib/server/produce.js';
+import { LIMITS } from '#lib/limits.js';
+import { isTemplate, normalizeReceipt, renderDocument, sampleReceipt, type Receipt } from '#lib/receipt/index.js';
+import { presentedKey, useApiKey } from '#lib/server/apikeys.js';
+import { cloudflareEnv, supabaseConfig } from '#lib/server/env.js';
+import { allowed, tooMany } from '#lib/server/guard.js';
+import { problem, readBody } from '#lib/server/http.js';
 import type { RequestHandler } from './$types';
 
-const scaleOf = (value: unknown) => {
-	const n = Number(value);
-	return Number.isFinite(n) && n > 0 ? Math.min(4, Math.max(1, n)) : 2;
-};
+// The public API. It answers with the receipt as a standalone HTML page (Google Fonts,
+// works anywhere). PNG, JPEG and PDF are made in the browser, on the website.
 
-async function send(event: RequestEvent, receipt: Receipt, output: OutputFormat, scale: number): Promise<Response> {
-	const data = await produce(receipt, output, {
-		origin: event.url.origin,
-		scale,
-		capture: (html, format, s) => platform.capture(event, html, format, s)
-	});
-	return new Response(data as BodyInit, {
-		headers: {
-			'Content-Type': CONTENT_TYPES[output],
-			'Content-Disposition': `inline; filename="receipt.${EXTENSIONS[output]}"`
-		}
-	});
-}
+const OUTPUTS = new Set(['', 'html']);
+const NOT_HTML =
+	'This API makes HTML. For PNG, JPEG or PDF, open the receipt on the website and download it, or turn the HTML into an image with any headless browser.';
 
-/** Example receipts: /api/v1/receipt?template=ticket&output=png */
+const html = (receipt: Receipt, headers?: HeadersInit) =>
+	new Response(renderDocument(receipt, { fonts: 'google', layout: 'page' }), {
+		headers: { 'Content-Type': 'text/html; charset=utf-8', ...headers }
+	});
+
+const outputOf = (value: unknown) => (value === undefined || value === null ? '' : String(value).toLowerCase());
+
+/** Anything without a valid key is limited per IP, so it can't keep the database busy */
+const ipAllowed = (event: RequestEvent, what: string) =>
+	allowed(cloudflareEnv().IP_LIMITER, `${what}:${event.getClientAddress()}`);
+
+/** Example receipts, no key needed: /api/v1/receipt?template=ticket */
 export const GET: RequestHandler = async (event) => {
 	const q = event.url.searchParams;
+	if (!OUTPUTS.has(outputOf(q.get('output') ?? q.get('format')))) return problem(400, NOT_HTML);
+	if (!(await ipAllowed(event, 'example'))) return tooMany();
 	const template = q.get('template');
-	const output = parseOutput(q.get('output') ?? q.get('format'));
-	if (!output) return problem(400, 'output must be one of html, png, jpeg, pdf');
-	const denied = await platform.authorize(event, output);
-	if (denied) return denied;
-	try {
-		return await send(event, sampleReceipt(isTemplate(template) ? template : 'default'), output, scaleOf(q.get('scale')));
-	} catch (err) {
-		return failure(err);
-	}
+	return html(sampleReceipt(isTemplate(template) ? template : 'default'));
 };
 
-/**
- * Same payload as Receiptable: { template, output, content, style }.
- * Extras: "scale" (1–4) sets image resolution; in the local app, "save": true writes
- * the file into the save folder and returns its path, and "filename" names it.
- */
+/** Same payload as Receiptable: { template, content, style }, with an API key */
 export const POST: RequestHandler = async (event) => {
-	const { request, url } = event;
-	const body = await readBody(request);
-	if (!body) return problem(400, 'Send a JSON object, e.g. {"template":"default","output":"png","content":{…}}');
+	const config = supabaseConfig();
+	if (!config) return problem(503, 'API keys are not set up on this server');
 
-	// Receiptable's own curl example uses "format"
-	const output = parseOutput(body.output ?? body.format);
-	if (!output) return problem(400, 'output must be one of html, png, jpeg, pdf');
-
-	const denied = await platform.authorize(event, output);
-	if (denied) return denied;
-
-	const receipt = normalizeReceipt(body);
-	const scale = scaleOf(body.scale);
-
-	try {
-		if (body.save === true || body.save === 'true') {
-			if (!platform.local) return problem(400, '"save" only works in the local app, which has a folder to save into.');
-			if (isCrossSite(request, url)) return problem(403, 'Saving to disk is not allowed from other websites');
-			const filename = typeof body.filename === 'string' ? body.filename : undefined;
-			const saved = await platform.local.saveReceipt(receipt, output, { origin: url.origin, scale, filename });
-			return Response.json(saved, { status: 201 });
-		}
-		return await send(event, receipt, output, scale);
-	} catch (err) {
-		return failure(err);
+	const key = presentedKey(event.request);
+	if (!key) {
+		if (!(await ipAllowed(event, 'nokey'))) return tooMany();
+		return problem(401, `This needs an API key. Sign in at ${event.url.origin}/app, open Profile, and create one. Send it as "Authorization: Bearer <key>".`);
 	}
+
+	const body = await readBody(event.request);
+	if (!body) return problem(400, 'Send a JSON object, e.g. {"template":"default","content":{…}}');
+	// Receiptable's own example uses "format"
+	if (!OUTPUTS.has(outputOf(body.output ?? body.format))) return problem(400, NOT_HTML);
+
+	let check;
+	try {
+		check = await useApiKey(config, key);
+	} catch (err) {
+		console.error(err);
+		return problem(503, 'Could not check the API key. Try again shortly.', { 'Retry-After': '10' });
+	}
+
+	if (!check.ok) {
+		if (check.reason === 'invalid') {
+			if (!(await ipAllowed(event, 'badkey'))) return tooMany();
+			return problem(401, 'That API key is not valid. It may have been revoked.');
+		}
+		const retry = { 'Retry-After': String(check.retry_after ?? 60) };
+		return check.reason === 'minute'
+			? problem(429, `Slow down: each key can make ${LIMITS.requestsPerMinute} requests a minute.`, retry)
+			: problem(429, `This key has made today's ${LIMITS.requestsPerDay} requests. It resets at 00:00 UTC.`, retry);
+	}
+
+	return html(normalizeReceipt(body), {
+		'X-RateLimit-Remaining-Minute': String(check.minute_left),
+		'X-RateLimit-Remaining-Day': String(check.day_left)
+	});
 };

@@ -124,6 +124,7 @@
 
 	.content {
 		overflow: auto;
+		overscroll-behavior: none;
 		padding: 18px 24px 24px;
 	}
 

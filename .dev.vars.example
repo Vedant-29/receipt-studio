@@ -1,0 +1,8 @@
+# Settings for npm run dev and npm run preview. Copy this file to .dev.vars, which git ignores.
+# In production they are Worker secrets: npx wrangler secret put <NAME>
+# Leave both empty to run signed out only.
+
+# https://<project-ref>.supabase.co
+SUPABASE_URL=
+# Supabase dashboard, Project Settings, API Keys: the publishable key (sb_publishable_...)
+SUPABASE_PUBLISHABLE_KEY=

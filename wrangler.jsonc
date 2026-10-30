@@ -1,7 +1,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	// The hosted version at stub.vedantagrw.com, deployed with `npm run deploy`.
-	// The Cloudflare account comes from CLOUDFLARE_ACCOUNT_ID, so it isn't written here.
+	// stub.vedantagrw.com. Deployed from a machine with `npm run deploy`; the GitHub repo
+	// doesn't deploy anything. The Cloudflare account comes from CLOUDFLARE_ACCOUNT_ID.
 	"name": "stub",
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"compatibility_date": "2026-10-01",
@@ -16,18 +16,15 @@
 	"preview_urls": false,
 	"observability": { "enabled": true },
 
-	// Cloudflare's headless Chrome, for PNG, JPEG and PDF from the API
-	"browser": { "binding": "BROWSER" },
-	// API key hashes and daily counters
-	"kv_namespaces": [{ "binding": "STUB_KV", "id": "da3b90b324194ce39d8a209b886be924" }],
+	// First-line dampers, per Cloudflare location (approximate). The exact API quotas are
+	// counted in Postgres (supabase/migrations).
 	"ratelimits": [
-		{ "name": "KEY_LIMITER", "namespace_id": "4721", "simple": { "limit": 30, "period": 60 } },
-		{ "name": "IP_LIMITER", "namespace_id": "4722", "simple": { "limit": 10, "period": 60 } }
-	],
-	"vars": {
-		// Public by design: Turnstile site keys are meant to be in the page
-		"TURNSTILE_SITE_KEY": "0x4AAAAAAFrsIQFNqoB8rnUP",
-		"TURNSTILE_HOSTNAMES": "stub.vedantagrw.com"
-	}
-	// Secret, not in this file: TURNSTILE_SECRET (wrangler secret put TURNSTILE_SECRET)
+		// Signed-out traffic and API calls without a valid key, per IP
+		{ "name": "IP_LIMITER", "namespace_id": "4722", "simple": { "limit": 30, "period": 60 } },
+		// The app's own routes for a signed-in person (autosave, history, keys), per user
+		{ "name": "USER_LIMITER", "namespace_id": "4723", "simple": { "limit": 120, "period": 60 } }
+	]
+
+	// Settings, not in this file: SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.
+	// Production: Worker secrets (wrangler secret put). Locally: .dev.vars, the same values.
 }

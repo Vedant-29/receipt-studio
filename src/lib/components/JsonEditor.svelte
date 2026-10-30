@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import { checkReceiptJson, receiptJson, toDraft, toPayload, type CheckedJson, type Draft } from '#lib/editor.js';
 	import CodeEditor from './CodeEditor.svelte';
 	import CopyButton from './CopyButton.svelte';
 	import Problems from './Problems.svelte';
 
-	let { draft = $bindable() }: { draft: Draft } = $props();
+	/** lead: the panel's header (the Form and JSON switch), in place of the title */
+	let { draft = $bindable(), lead }: { draft: Draft; lead?: Snippet } = $props();
 
 	const current = $derived(receiptJson(toPayload(draft)));
 	let text = $state(untrack(() => current));
@@ -51,9 +52,9 @@
 	);
 </script>
 
-<div class="json card">
+<div class="json">
 	<div class="head">
-		<span class="title">Receipt JSON</span>
+		{#if lead}{@render lead()}{:else}<span class="title">Receipt JSON</span>{/if}
 		<div class="actions">
 			<button
 				class="quiet"
@@ -95,7 +96,7 @@
 		flex: 1;
 		flex-direction: column;
 		min-height: 0;
-		padding: 4px 8px 10px;
+		padding: 0 8px 10px;
 	}
 
 	.head {
@@ -103,8 +104,8 @@
 		flex: none;
 		align-items: center;
 		justify-content: space-between;
-		height: 40px;
-		padding: 0 8px;
+		height: 52px;
+		padding: 0 10px 0 4px;
 	}
 
 	.title {

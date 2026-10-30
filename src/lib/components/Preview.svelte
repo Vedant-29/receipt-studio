@@ -97,6 +97,7 @@
 		inset: 0;
 		display: flex;
 		overflow: auto;
+		overscroll-behavior: none;
 	}
 
 	.stage {

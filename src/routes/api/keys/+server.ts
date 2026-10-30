@@ -1,11 +1,26 @@
-import { platform } from '#platform';
-import { notFound } from '#lib/server/http.js';
+import { dbFailure, signedIn } from '#lib/server/guard.js';
+import { PRIVATE, readBody } from '#lib/server/http.js';
 import type { RequestHandler } from './$types';
 
-// Hosted version only: the local app has no API keys, since it only listens on your own machine.
+/** Their keys: prefix, label, dates and today's count. Never the key or its hash. */
+export const GET: RequestHandler = async (event) => {
+	const auth = await signedIn(event);
+	if (auth instanceof Response) return auth;
+	const { data, error } = await auth.supabase
+		.from('api_keys')
+		.select('id,prefix,label,created_at,last_used_at,day_start,day_count')
+		.order('created_at', { ascending: false });
+	if (error) return dbFailure(error);
+	return Response.json(data, { headers: PRIVATE });
+};
 
-/** Make a key. Body: { token: <Turnstile token>, label?: string }. The key is in the reply, once. */
-export const POST: RequestHandler = (event) => (platform.cloud ? platform.cloud.createKey(event) : notFound());
-
-/** Revoke a key: send it as "Authorization: Bearer <key>", or { hash } from the browser that made it */
-export const DELETE: RequestHandler = (event) => (platform.cloud ? platform.cloud.revokeKey(event) : notFound());
+/** A new key: { label? }. The response is the only time the whole key is ever sent. */
+export const POST: RequestHandler = async (event) => {
+	const auth = await signedIn(event);
+	if (auth instanceof Response) return auth;
+	const body = await readBody(event.request);
+	const label = typeof body?.label === 'string' ? body.label.slice(0, 40) : null;
+	const { data, error } = await auth.supabase.rpc('create_api_key', { p_label: label }).single();
+	if (error) return dbFailure(error);
+	return Response.json({ ...(data as object), last_used_at: null, day_start: null, day_count: 0 }, { status: 201, headers: PRIVATE });
+};

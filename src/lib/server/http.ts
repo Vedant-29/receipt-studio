@@ -1,44 +1,27 @@
-import type { OutputFormat } from '#lib/receipt/index.js';
-import { UnavailableError } from './errors';
-
 export const problem = (status: number, error: string, headers?: HeadersInit) =>
 	Response.json({ error }, { status, headers });
 
 export const notFound = () => problem(404, 'Not found');
 
-const OUTPUT_ALIASES: Record<string, OutputFormat> = {
-	html: 'html',
-	png: 'png',
-	image: 'png',
-	jpeg: 'jpeg',
-	jpg: 'jpeg',
-	pdf: 'pdf'
-};
+/** Bodies bigger than this are refused before they're read (receipts carry their logo inline) */
+export const MAX_BODY = 2_000_000;
 
-export function parseOutput(value: unknown): OutputFormat | null {
-	if (value === undefined || value === null || value === '') return 'html';
-	return typeof value === 'string' ? (OUTPUT_ALIASES[value.toLowerCase()] ?? null) : null;
-}
-
-/** A browser request from some other site. Postman, curl and server code send no Origin header. */
-export function isCrossSite(request: Request, url: URL): boolean {
-	const origin = request.headers.get('origin');
-	return Boolean(origin && origin !== url.origin);
-}
-
+/** A JSON object body, or null. Oversized bodies are refused unread. */
 export async function readBody(request: Request): Promise<Record<string, unknown> | null> {
+	const length = Number(request.headers.get('content-length') ?? 0);
+	if (length > MAX_BODY) return null;
 	try {
-		const body = await request.json();
-		return typeof body === 'object' && body !== null && !Array.isArray(body) ? body : null;
+		const text = await request.text();
+		if (text.length > MAX_BODY) return null;
+		const body: unknown = JSON.parse(text);
+		return typeof body === 'object' && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : null;
 	} catch {
 		return null;
 	}
 }
 
-export function failure(err: unknown): Response {
-	if (err instanceof UnavailableError) {
-		return problem(503, err.message, err.retryAfter ? { 'Retry-After': String(err.retryAfter) } : undefined);
-	}
-	console.error(err);
-	return problem(500, err instanceof Error ? err.message : 'Something went wrong');
-}
+export const isUuid = (value: string | undefined): value is string =>
+	typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+/** Answers that depend on who's asking must never be cached */
+export const PRIVATE = { 'Cache-Control': 'private, no-store' } as const;
