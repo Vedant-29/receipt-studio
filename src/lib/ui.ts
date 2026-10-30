@@ -14,3 +14,14 @@ export function typing(e: KeyboardEvent): boolean {
 	const el = e.target as HTMLElement | null;
 	return Boolean(el?.closest('input, textarea, select, [contenteditable]'));
 }
+
+const KEY_NAMES: Record<string, string> = {
+	mod: isMac ? '⌘' : 'Ctrl',
+	shift: '⇧',
+	alt: isMac ? '⌥' : 'Alt',
+	enter: '↵',
+	esc: 'Esc'
+};
+
+/** "mod" → ⌘ or Ctrl, "shift" → ⇧, letters in capitals; for key chips */
+export const keyLabel = (key: string) => KEY_NAMES[key] ?? (key.length === 1 ? key.toUpperCase() : key);

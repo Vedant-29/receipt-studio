@@ -31,7 +31,7 @@
 	<div class="tools">
 		<label class="search">
 			<Search size={14} />
-			<input {...noAutofill} class="v" bind:value={query} placeholder="Search coffee, pizza, pharmacy…" aria-label="Search logos" />
+			<input {...noAutofill} class="v" name="logo-search" bind:value={query} placeholder="Search coffee, pizza, pharmacy…" aria-label="Search logos" />
 		</label>
 		<Tabs label="Style" options={LOGO_STYLES} bind:value={style} />
 	</div>
@@ -50,14 +50,13 @@
 	{/if}
 
 	{#snippet footer()}
-		<span class="muted">Have your own?</span>
 		<button
-			class="quiet"
+			class="secondary"
 			type="button"
 			onclick={() => {
 				open = false;
 				onupload();
-			}}>Upload an image</button
+			}}>Upload your own</button
 		>
 	{/snippet}
 </Dialog>
@@ -141,7 +140,4 @@
 		text-align: center;
 	}
 
-	.muted {
-		margin-right: auto;
-	}
 </style>

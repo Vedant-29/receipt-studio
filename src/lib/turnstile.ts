@@ -30,26 +30,52 @@ function load(): Promise<TurnstileApi> {
 	return loading;
 }
 
+/** What to tell someone when the check fails, by the error code's family */
+function failure(code: string): Error {
+	const family = code.slice(0, 3);
+	if (family === '300' || family === '600') {
+		return new Error(`Cloudflare couldn't confirm this browser (error ${code}). Try again, or use another browser.`);
+	}
+	if (code === '110600' || code === '110620') return new Error("Cloudflare's check timed out. Try again.");
+	if (family === '200') return new Error(`Cloudflare's check couldn't load (error ${code}). Check your connection and try again.`);
+	return new Error(`Cloudflare's check failed (error ${code}). Refresh and try again.`);
+}
+
 /**
  * Runs the check inside `container` and resolves with a fresh token. The widget only shows itself
  * if Cloudflare wants an interaction; most people never see it. It's removed again afterwards,
- * since each token works once.
+ * since each token works once, so Turnstile must not retry or refresh a widget that is gone:
+ * retries are off, and pressing the button again starts a new check.
  */
 export async function turnstileToken(container: HTMLElement, sitekey: string, action: string): Promise<string> {
 	const turnstile = await load();
 	return new Promise((resolve, reject) => {
-		let id = '';
-		const done = (fn: () => void) => {
-			fn();
-			queueMicrotask(() => turnstile.remove(id));
+		let id: string | undefined;
+		let settled = false;
+		const finish = (outcome: () => void) => {
+			if (settled) return;
+			settled = true;
+			outcome();
+			// After Turnstile's own callback has returned, never from inside it
+			setTimeout(() => {
+				if (id) turnstile.remove(id);
+			});
 		};
 		id = turnstile.render(container, {
 			sitekey,
 			action,
 			appearance: 'interaction-only',
-			callback: (token: string) => done(() => resolve(token)),
-			'error-callback': () => done(() => reject(new Error("Cloudflare's check failed. Refresh and try again."))),
-			'expired-callback': () => done(() => reject(new Error("Cloudflare's check expired. Try again.")))
+			retry: 'never',
+			'refresh-expired': 'never',
+			'refresh-timeout': 'never',
+			callback: (token: string) => finish(() => resolve(token)),
+			'error-callback': (code: string) => {
+				finish(() => reject(failure(String(code))));
+				// Handled: Turnstile doesn't log it again
+				return true;
+			},
+			'expired-callback': () => finish(() => reject(new Error("Cloudflare's check expired. Try again."))),
+			'timeout-callback': () => finish(() => reject(new Error("Cloudflare's check timed out. Try again.")))
 		});
 	});
 }

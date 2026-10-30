@@ -16,7 +16,9 @@ async function call<T>(url: string, method = 'GET', body?: unknown): Promise<T> 
 		body: body === undefined ? undefined : JSON.stringify(body)
 	});
 	if (!res.ok) throw await failure(res);
-	return (res.status === 204 ? undefined : await res.json()) as T;
+	// Read even an empty 204: Chrome lists a response whose body was never read as cancelled
+	const text = await res.text();
+	return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {

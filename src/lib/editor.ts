@@ -1,4 +1,7 @@
+import { locateJson } from '#lib/json-lines.js';
 import {
+	issuePath,
+	normalizeReceipt,
 	prune,
 	type Codes,
 	type Customer,
@@ -8,7 +11,8 @@ import {
 	type ReceiptContent,
 	type Store,
 	type StoreImage,
-	type Tax
+	type Tax,
+	validateReceipt
 } from '#lib/receipt/index.js';
 
 /** A receipt where every nested object exists, so form fields can bind straight to it */
@@ -58,6 +62,57 @@ export function toPayload(draft: Draft): Receipt {
 	const content = copy(draft.content);
 	content.items = content.items.filter((item) => item.name?.trim() || item.price);
 	return { template: draft.template, content: prune(content) ?? {}, style: prune(copy(draft.style)) ?? {} };
+}
+
+/** The JSON shown in JSON mode and exported: the API's payload, without the output fields */
+export const receiptJson = (receipt: Receipt) => JSON.stringify(receipt, null, 2);
+
+/** Something wrong with typed or pasted JSON, and the line it's on when that's known */
+export interface Problem {
+	message: string;
+	severity: 'error' | 'warning';
+	line?: number;
+	column?: number;
+	/** content.items[1].price, for field problems */
+	field?: string;
+}
+
+export interface CheckedJson {
+	/** Set when nothing is an error; warnings can still be listed */
+	receipt?: Receipt;
+	problems: Problem[];
+}
+
+/**
+ * Reads pasted or typed JSON strictly: syntax first, then every field against what the renderer
+ * accepts, so nothing is silently dropped. The API's payload and Receiptable's flat fields both work.
+ */
+export function checkReceiptJson(text: string): CheckedJson {
+	const located = locateJson(text);
+	if (located.error) {
+		return { problems: [{ ...located.error, severity: 'error' }] };
+	}
+	const value: unknown = JSON.parse(text);
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return {
+			problems: [{ message: 'A receipt is a JSON object, like { "template": "default", "content": { … } }', severity: 'error', line: 1 }]
+		};
+	}
+	const problems = [
+		...located.duplicates.map(
+			({ path, line }): Problem => ({
+				message: `${path} is written twice. Only the last one is used, so remove one`,
+				severity: 'error',
+				field: path,
+				line
+			})
+		),
+		...validateReceipt(value).map((issue): Problem => {
+			const field = issuePath(issue.path);
+			return { message: `${field} ${issue.message}`, severity: issue.severity, field, line: located.lines.get(field) };
+		})
+	];
+	return problems.some((p) => p.severity === 'error') ? { problems } : { receipt: normalizeReceipt(value), problems };
 }
 
 /** "0042" → "0043", "A9" → "A10", "ORD-2026-7" → "ORD-2026-8" */

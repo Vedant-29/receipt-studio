@@ -50,6 +50,15 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const response = await resolve(event);
 	if (publicApi) for (const [key, value] of Object.entries(CORS)) response.headers.set(key, value);
-	if (platform.mode === 'cloud') for (const [key, value] of Object.entries(SECURITY)) response.headers.set(key, value);
+	if (platform.mode === 'cloud') {
+		for (const [key, value] of Object.entries(SECURITY)) response.headers.set(key, value);
+		// Cloudflare injects its Web Analytics beacon into HTML on proxied zones unless told not to.
+		// The CSP blocks the beacon's reports (Turnstile is the only third party), so it only ever
+		// failed in the console. no-transform keeps the page exactly as the Worker sent it.
+		if (response.headers.get('content-type')?.startsWith('text/html')) {
+			const cache = response.headers.get('cache-control');
+			response.headers.set('cache-control', cache ? `${cache}, no-transform` : 'no-transform');
+		}
+	}
 	return response;
 };

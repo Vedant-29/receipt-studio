@@ -64,14 +64,17 @@
 	width={700}
 >
 	{#if cloud}
+		<p class="group-title">Keys</p>
 		<KeysPanel {sitekey} bind:fresh />
-		<div class="gap"></div>
 	{/if}
 
-	<div class="prop endpoint">
-		<span class="k">Endpoint</span>
-		<code class="v">POST {endpoint}</code>
-		<CopyButton text={endpoint} />
+	<p class="group-title">Request</p>
+	<div class="group">
+		<div class="prop endpoint">
+			<span class="k">Endpoint</span>
+			<code class="v">POST {endpoint}</code>
+			<CopyButton text={endpoint} />
+		</div>
 	</div>
 
 	<div class="snippet">
@@ -83,7 +86,8 @@
 		<p class="note">This is the receipt you're editing. In Postman, paste the JSON as a raw body.</p>
 	</div>
 
-	<dl class="options">
+	<p class="group-title">Options</p>
+	<dl class="group options">
 		<dt><code>output</code></dt>
 		<dd>html, png, jpeg or pdf. The response is the file itself.</dd>
 		<dt><code>template</code></dt>
@@ -110,10 +114,6 @@
 </Dialog>
 
 <style>
-	.gap {
-		height: 20px;
-	}
-
 	.endpoint code {
 		display: flex;
 		align-items: center;
@@ -124,14 +124,15 @@
 	}
 
 	.snippet {
-		margin-top: 16px;
+		margin-top: 14px;
 	}
 
 	.tabs {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 8px;
+		gap: 12px;
+		margin: 0 2px 8px 0;
 	}
 
 	pre {
@@ -139,7 +140,7 @@
 		margin: 0;
 		overflow: auto;
 		padding: 14px 16px;
-		border-radius: 10px;
+		border-radius: 12px;
 		background: var(--muted);
 		font-size: 12.5px;
 		line-height: 1.6;
@@ -153,8 +154,9 @@
 	.options {
 		display: grid;
 		grid-template-columns: max-content 1fr;
-		gap: 6px 20px;
-		margin: 20px 0 0;
+		gap: 8px 20px;
+		margin: 0;
+		padding: 12px 14px;
 	}
 
 	.options dd {
@@ -162,13 +164,18 @@
 		color: var(--muted-foreground);
 	}
 
-	.note {
-		margin: 10px 0 0;
-		color: var(--muted-foreground);
-		font-size: 13px;
+	.options + .note {
+		margin-top: 16px;
 	}
 
-	.options + .note {
-		margin-top: 20px;
+	@media (max-width: 600px) {
+		.options {
+			grid-template-columns: 1fr;
+			gap: 0;
+		}
+
+		.options dd + dt {
+			margin-top: 10px;
+		}
 	}
 </style>

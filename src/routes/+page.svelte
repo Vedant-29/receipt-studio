@@ -1,20 +1,44 @@
 <script lang="ts">
+	import ArrowRight from '@lucide/svelte/icons/arrow-right';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import Ellipsis from '@lucide/svelte/icons/ellipsis';
+	import File from '@lucide/svelte/icons/file';
+	import FileDown from '@lucide/svelte/icons/file-down';
+	import FileUp from '@lucide/svelte/icons/file-up';
+	import PanelRightOpen from '@lucide/svelte/icons/panel-right-open';
+	import Plus from '@lucide/svelte/icons/plus';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import { onMount } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { canChooseFolder, localBackend, webBackend } from '#lib/backend.js';
 	import { errorMessage } from '#lib/client.js';
 	import ApiDialog from '#lib/components/ApiDialog.svelte';
 	import Editor from '#lib/components/Editor.svelte';
-	import HistoryDialog from '#lib/components/HistoryDialog.svelte';
+	import ImportDialog from '#lib/components/ImportDialog.svelte';
+	import JsonEditor from '#lib/components/JsonEditor.svelte';
+	import Mark from '#lib/components/Mark.svelte';
 	import Menu from '#lib/components/Menu.svelte';
 	import Preview from '#lib/components/Preview.svelte';
+	import SavedPanel from '#lib/components/SavedPanel.svelte';
 	import SaveControl from '#lib/components/SaveControl.svelte';
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
+	import ShortcutsDialog from '#lib/components/ShortcutsDialog.svelte';
+	import Tabs from '#lib/components/Tabs.svelte';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
-	import { blankReceipt, nextReceipt, toDraft, toPayload, type Draft } from '#lib/editor.js';
-	import { normalizeReceipt, renderReceipt, sampleReceipt, type OutputFormat, type Receipt } from '#lib/receipt/index.js';
+	import Tooltip from '#lib/components/Tooltip.svelte';
+	import { blankReceipt, increment, nextReceipt, receiptJson, toDraft, toPayload, type Draft } from '#lib/editor.js';
+	import {
+		normalizeReceipt,
+		renderReceipt,
+		sampleReceipt,
+		TEMPLATES,
+		type OutputFormat,
+		type Receipt
+	} from '#lib/receipt/index.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import type { HistoryEntry, Settings } from '#lib/types.js';
+	import { typing } from '#lib/ui.js';
 	import * as webStore from '#lib/web-store.js';
 	import type { PageProps } from './$types';
 
@@ -33,6 +57,24 @@
 		return toDraft(sample);
 	}
 
+	/** Small per-browser choices about the layout: which editor and whether Saved is open */
+	function remember<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
+		try {
+			const value = localStorage.getItem(key) as T | null;
+			return value && allowed.includes(value) ? value : fallback;
+		} catch {
+			return fallback;
+		}
+	}
+
+	function keep(key: string, value: string) {
+		try {
+			localStorage.setItem(key, value);
+		} catch {
+			// Private windows can refuse storage; the layout just won't be remembered
+		}
+	}
+
 	// svelte-ignore state_referenced_locally
 	let settings = $state<Settings>(cloud ? webStore.loadSettings() : (data.settings as Settings));
 	// svelte-ignore state_referenced_locally
@@ -43,9 +85,26 @@
 
 	let saving = $state(false);
 	let newOpen = $state(false);
-	let historyOpen = $state(false);
+	let formatOpen = $state(false);
+	let moreOpen = $state(false);
+	let importOpen = $state(false);
 	let apiOpen = $state(false);
 	let settingsOpen = $state(false);
+	let shortcutsOpen = $state(false);
+
+	/** Form fields or the receipt's JSON */
+	let mode = $state(remember('stub:editor', 'form', ['form', 'json'] as const));
+	/** Desktop: the Saved sidebar, open or folded into a rail */
+	let savedOpen = $state(remember('stub:saved', 'closed', ['open', 'closed'] as const) === 'open');
+	/** Phones show one thing at a time */
+	let view = $state<'edit' | 'preview' | 'saved'>('edit');
+	const phone = new MediaQuery('max-width: 760px');
+	const showSaved = $derived(phone.current ? view === 'saved' : savedOpen);
+
+	$effect(() => keep('stub:editor', mode));
+	$effect(() => keep('stub:saved', savedOpen ? 'open' : 'closed'));
+
+	let preview: Preview | undefined = $state();
 
 	const html = $derived(renderReceipt(draft));
 	const payload = $derived(toPayload(draft));
@@ -116,8 +175,8 @@
 	async function editSaved(entry: HistoryEntry) {
 		try {
 			const receipt = await backend.saved(entry.id);
-			historyOpen = false;
 			replace(toDraft(receipt), `Editing ${entry.filename}`);
+			if (phone.current) view = 'edit';
 		} catch (err) {
 			toasts.error(errorMessage(err));
 		}
@@ -142,24 +201,8 @@
 		await changeSettings({ saveDir: '' });
 	}
 
-	function importJson() {
-		const input = document.createElement('input');
-		input.type = 'file';
-		input.accept = 'application/json,.json';
-		input.onchange = async () => {
-			const file = input.files?.[0];
-			if (!file) return;
-			try {
-				replace(toDraft(normalizeReceipt(JSON.parse(await file.text()))), `Imported ${file.name}`);
-			} catch {
-				toasts.error(`${file.name} isn't valid JSON`);
-			}
-		};
-		input.click();
-	}
-
 	function exportJson() {
-		const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+		const blob = new Blob([receiptJson(payload)], { type: 'application/json' });
 		const link = document.createElement('a');
 		link.href = URL.createObjectURL(blob);
 		link.download = 'receipt.json';
@@ -167,21 +210,91 @@
 		URL.revokeObjectURL(link.href);
 	}
 
-	function onkeydown(e: KeyboardEvent) {
-		if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-			e.preventDefault();
-			save();
-		}
+	function toggleSaved() {
+		if (phone.current) view = view === 'saved' ? 'edit' : 'saved';
+		else savedOpen = !savedOpen;
 	}
 
-	const newItems = [
-		{ label: 'Next receipt', meta: 'Same store', run: () => replace(nextReceipt(draft), 'Started the next receipt') },
-		{ label: 'Blank receipt', run: () => replace(blankReceipt(draft), 'Started a blank receipt') },
+	function toggleMode() {
+		mode = mode === 'form' ? 'json' : 'form';
+		if (phone.current) view = 'edit';
+	}
+
+	// The keys behind every data-keys hint, and the list in ShortcutsDialog. ⌘S works anywhere;
+	// single keys only while you're not typing, no dialog is open and no menu has them (menus
+	// take keys first). D (theme) lives in ThemeToggle.
+	const KEYS: Record<string, () => void> = {
+		'?': () => (shortcutsOpen = true),
+		n: () => (newOpen = !newOpen),
+		f: () => (formatOpen = !formatOpen),
+		j: toggleMode,
+		h: toggleSaved,
+		a: () => (apiOpen = true),
+		',': () => (settingsOpen = true),
+		'=': () => preview?.zoom(1),
+		'+': () => preview?.zoom(1),
+		'-': () => preview?.zoom(-1),
+		'0': () => preview?.actualSize(),
+		...Object.fromEntries(TEMPLATES.map((id, i) => [String(i + 1), () => (draft.template = id)]))
+	};
+
+	function onkeydown(e: KeyboardEvent) {
+		if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 's') {
+			e.preventDefault();
+			save();
+			return;
+		}
+		if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented || typing(e)) return;
+		if (document.querySelector('dialog[open]')) return;
+		const run = KEYS[e.key.toLowerCase()];
+		if (!run) return;
+		e.preventDefault();
+		run();
+	}
+
+	const nextOrder = $derived(draft.content.orderNumber?.trim() ? increment(draft.content.orderNumber.trim()) : '');
+	const newItems = $derived([
+		{
+			label: 'Next receipt',
+			sub: nextOrder ? `Order ${nextOrder}, same store` : 'Same store, fresh items',
+			key: 'n',
+			icon: ArrowRight,
+			run: () => replace(nextReceipt(draft), 'Started the next receipt')
+		},
+		{
+			label: 'Blank receipt',
+			sub: 'Empty, keeps the template and style',
+			key: 'b',
+			icon: File,
+			run: () => replace(blankReceipt(draft), 'Started a blank receipt')
+		},
 		{
 			label: 'Example',
+			sub: 'The Fern & Fig Café sample',
+			key: 'e',
+			icon: Sparkles,
 			run: () =>
 				replace(toDraft({ ...sampleReceipt(draft.template), style: $state.snapshot(draft.style) }), 'Loaded the example')
-		}
+		},
+		{
+			group: 'JSON',
+			label: 'Import JSON…',
+			sub: 'Paste it or open a .json file',
+			key: 'i',
+			icon: FileUp,
+			run: () => (importOpen = true)
+		},
+		{ label: 'Export JSON', sub: 'Download receipt.json', key: 'x', icon: FileDown, run: exportJson }
+	]);
+
+	const views = [
+		{ value: 'edit' as const, label: 'Edit' },
+		{ value: 'preview' as const, label: 'Preview' },
+		{ value: 'saved' as const, label: 'Saved' }
+	];
+	const modes = [
+		{ value: 'form' as const, label: 'Form' },
+		{ value: 'json' as const, label: 'JSON' }
 	];
 </script>
 
@@ -189,71 +302,176 @@
 
 <div class="app">
 	<header class="top rise">
-		<span class="brand">Stub</span>
+		<div class="lead">
+			<span class="brand"><span class="mark"><Mark /></span>Stub</span>
+			<div class="mode" data-tip="Edit as a form or as JSON" data-keys="J">
+				<Tabs segmented options={modes} bind:value={mode} label="Edit as" />
+			</div>
+		</div>
+		<span class="break"></span>
 
-		<nav class="nav">
-			<Menu bind:open={newOpen} width={232}>
-				{#snippet trigger({ toggle, open })}
-					<button class="quiet" class:on={open} type="button" onclick={toggle}>New</button>
-				{/snippet}
-				{#snippet children({ close })}
-					{#each newItems as item (item.label)}
+		<div class="views">
+			<Tabs segmented options={views} bind:value={view} label="View" />
+		</div>
+
+		<nav class="links" aria-label="Stub">
+			<button class="ghost wide" type="button" data-tip="Make receipts from your own code" data-keys="A" onclick={() => (apiOpen = true)}
+				>API</button
+			>
+			<button class="ghost wide" type="button" data-tip="Saving, formats and shortcuts" data-keys="," onclick={() => (settingsOpen = true)}
+				>Settings</button
+			>
+			<ThemeToggle />
+			<!-- Phones have room for the view tabs, so the rest folds into a menu -->
+			<div class="more">
+				<Menu bind:open={moreOpen} width={196}>
+					{#snippet trigger({ toggle, open })}
+						<button class="icon-btn" class:on={open} type="button" aria-label="More" aria-haspopup="menu" aria-expanded={open} onclick={toggle}>
+							<Ellipsis size={16} />
+						</button>
+					{/snippet}
+					{#snippet children({ close })}
 						<button
 							class="menu-item"
 							type="button"
 							role="menuitem"
 							onclick={() => {
 								close();
-								item.run();
-							}}>{item.label}{#if item.meta}<span class="meta">{item.meta}</span>{/if}</button
+								toggleMode();
+							}}>{mode === 'form' ? 'Edit as JSON' : 'Edit as a form'}</button
 						>
+						<div class="menu-sep"></div>
+						<button
+							class="menu-item"
+							type="button"
+							role="menuitem"
+							onclick={() => {
+								close();
+								apiOpen = true;
+							}}>API</button
+						>
+						<button
+							class="menu-item"
+							type="button"
+							role="menuitem"
+							onclick={() => {
+								close();
+								settingsOpen = true;
+							}}>Settings</button
+						>
+					{/snippet}
+				</Menu>
+			</div>
+		</nav>
+
+		<div class="actions">
+			<Menu bind:open={newOpen} width={304}>
+				{#snippet trigger({ toggle, open })}
+					<button
+						class="secondary new"
+						class:on={open}
+						type="button"
+						aria-haspopup="menu"
+						aria-expanded={open}
+						data-tip="New receipt or JSON"
+						data-keys="N"
+						onclick={toggle}
+					>
+						<Plus size={14} />
+						New
+						<span class="chev" class:open><ChevronDown size={12} /></span>
+					</button>
+				{/snippet}
+				{#snippet children({ close })}
+					<p class="menu-label">Start</p>
+					{#each newItems as item (item.label)}
+						{@const Icon = item.icon}
+						{#if item.group}<p class="menu-label">{item.group}</p>{/if}
+						<button
+							class="menu-row"
+							type="button"
+							role="menuitem"
+							data-key={item.key}
+							onclick={() => {
+								close();
+								item.run();
+							}}
+						>
+							<span class="menu-icon"><Icon size={15} /></span>
+							<span class="menu-text">{item.label}<span class="menu-sub">{item.sub}</span></span>
+							<kbd class="kbd">{item.key.toUpperCase()}</kbd>
+						</button>
 					{/each}
-					<div class="menu-sep"></div>
-					<button
-						class="menu-item"
-						type="button"
-						role="menuitem"
-						onclick={() => {
-							close();
-							importJson();
-						}}>Import JSON…</button
-					>
-					<button
-						class="menu-item"
-						type="button"
-						role="menuitem"
-						onclick={() => {
-							close();
-							exportJson();
-						}}>Export JSON</button
-					>
+					<p class="menu-foot">
+						<kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd><span>move</span>
+						<kbd class="kbd">↵</kbd><span>choose</span>
+						<kbd class="kbd">Esc</kbd><span>close</span>
+					</p>
 				{/snippet}
 			</Menu>
-			<button class="quiet" type="button" onclick={() => (historyOpen = true)}>Saved</button>
-			<button class="quiet" type="button" onclick={() => (apiOpen = true)}>API</button>
-			<button class="quiet" type="button" onclick={() => (settingsOpen = true)}>Settings</button>
-			<ThemeToggle />
-			<span class="sep"></span>
 			<SaveControl
+				bind:open={formatOpen}
 				format={settings.format}
+				scale={settings.scale}
 				{saving}
 				{folder}
 				images={data.images}
 				onsave={() => save()}
 				onformat={(format) => changeSettings({ format })}
+				onscale={(scale) => changeSettings({ scale })}
 				oncopy={copyImage}
 				onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
 			/>
-		</nav>
+		</div>
 	</header>
 
-	<main class="main">
-		<aside class="panel rise" style="--i: 1">
-			<Editor bind:draft />
+	<main class="main" data-view={view}>
+		<aside class="panel rise" class:fill={mode === 'json'} style="--i: 1" aria-label="Editor">
+			{#if mode === 'form'}
+				<Editor bind:draft />
+			{:else}
+				<JsonEditor bind:draft />
+			{/if}
 		</aside>
-		<section class="canvas rise" style="--i: 2" aria-label="Preview">
-			<Preview {html} bind:template={draft.template} />
-		</section>
+
+		<div class="work rise" style="--i: 2">
+			<section class="canvas card" aria-label="Preview">
+				<Preview bind:this={preview} {html} bind:template={draft.template} />
+			</section>
+
+			<!-- Folded into a rail until opened; it grows open rather than appearing -->
+			<div class="side card" class:open={showSaved}>
+				<button
+					class="rail"
+					type="button"
+					inert={showSaved}
+					aria-label="Show saved receipts"
+					aria-expanded={showSaved}
+					data-tip="Show saved receipts"
+					data-keys="H"
+					onclick={() => (savedOpen = true)}
+				>
+					<PanelRightOpen size={15} />
+					{#if history.length}<span class="count num">{history.length}</span>{/if}
+					<span class="rail-label">Saved</span>
+				</button>
+				<div class="side-panel" inert={!showSaved}>
+					<SavedPanel
+						entries={history}
+						{folder}
+						revealLabel={data.revealLabel}
+						load={(id) => backend.saved(id)}
+						onedit={editSaved}
+						onforget={forget}
+						onclose={phone.current ? undefined : () => (savedOpen = false)}
+						onopen={backend.open ? (entry) => report(backend.open?.(entry.id)) : undefined}
+						onreveal={backend.reveal ? (entry) => report(backend.reveal?.(entry.id)) : undefined}
+						onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
+						ondownload={backend.download ? (entry) => report(backend.download?.(entry.id)) : undefined}
+					/>
+				</div>
+			</div>
+		</div>
 	</main>
 </div>
 
@@ -269,149 +487,333 @@
 	onchoose={chooseFolder}
 	onclear={useDownloads}
 	onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
+	onshortcuts={() => (shortcutsOpen = true)}
 />
+<ShortcutsDialog bind:open={shortcutsOpen} />
 <ApiDialog bind:open={apiOpen} receipt={payload} format={settings.format} mode={data.mode} sitekey={data.turnstileSiteKey} />
-<HistoryDialog
-	bind:open={historyOpen}
-	entries={history}
-	{folder}
-	revealLabel={data.revealLabel}
-	onedit={editSaved}
-	onforget={forget}
-	onopen={backend.open ? (entry) => report(backend.open?.(entry.id)) : undefined}
-	onreveal={backend.reveal ? (entry) => report(backend.reveal?.(entry.id)) : undefined}
-	onfolder={backend.openFolder ? () => report(backend.openFolder?.()) : undefined}
-	ondownload={backend.download ? (entry) => report(backend.download?.(entry.id)) : undefined}
-/>
+<ImportDialog bind:open={importOpen} onimport={(receipt, source) => replace(toDraft(receipt), `Imported ${source}`)} />
 <Toasts />
+<Tooltip />
 
 <style>
 	/* minmax(0, 1fr) so a wide header can't make the whole page wider than the screen */
 	.app {
+		--editor: 392px;
+		--saved: 300px;
+		--rail: 44px;
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		grid-template-rows: 60px minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr);
 		height: 100vh;
 		height: 100dvh;
 	}
 
+	/* One row: Stub and the editor switch over the editor, everything else at the right edge */
 	.top {
 		/* Above the canvas, so the header's menus aren't painted underneath it */
 		position: relative;
 		z-index: 10;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 24px;
-		padding: 0 18px 0 28px;
+		height: 56px;
+		padding: 0 12px;
 	}
 
+	.lead {
+		display: flex;
+		flex: none;
+		align-items: center;
+		gap: 16px;
+		width: var(--editor);
+		margin-right: auto;
+		padding-left: 16px;
+	}
+
+	/* One lockup: the mark on a tile (the same as the favicon), then the name */
 	.brand {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		font-size: 15px;
-		font-weight: 500;
-		letter-spacing: -0.01em;
+		font-weight: 600;
+		letter-spacing: -0.02em;
 		white-space: nowrap;
 	}
 
-	.nav {
+	.mark {
+		display: grid;
+		flex: none;
+		width: 24px;
+		height: 24px;
+		place-items: center;
+		padding: 3px;
+		border-radius: 7px;
+		background: var(--foreground);
+		color: var(--surface);
+	}
+
+	.views,
+	.break,
+	.more {
+		display: none;
+	}
+
+	.links {
 		display: flex;
 		align-items: center;
-		gap: 18px;
+		gap: 2px;
 	}
 
-	.sep {
-		width: 1px;
-		height: 16px;
-		margin: 0 -4px;
-		background: var(--border);
+	.links :global(.toggle) {
+		width: 32px;
+		height: 32px;
 	}
 
+	.actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-left: 12px;
+		padding-left: 12px;
+		box-shadow: inset 1px 0 0 var(--border);
+	}
+
+	.new .chev {
+		display: grid;
+		margin-left: -1px;
+		color: var(--muted-foreground);
+		transition: transform 300ms var(--ease);
+	}
+
+	.new .chev.open {
+		transform: rotate(180deg);
+	}
+
+	/* Editor | preview and the Saved sidebar, all the same height, 12px apart */
 	.main {
 		display: grid;
-		grid-template-columns: 400px minmax(0, 1fr);
+		grid-template-columns: var(--editor) minmax(0, 1fr);
+		gap: 12px;
 		min-height: 0;
+		padding: 0 12px 12px;
 	}
 
+	/* The editor column scrolls on its own; its cards start level with the preview */
 	.panel {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
 		overflow-x: hidden;
 		overflow-y: auto;
-		scrollbar-gutter: stable;
+		padding-bottom: 40px;
+		scrollbar-width: thin;
+	}
+
+	/* JSON mode: one card from top to bottom, and the editor inside it scrolls */
+	.panel.fill {
+		overflow: hidden;
+		padding-bottom: 0;
+	}
+
+	.work {
+		display: flex;
+		min-width: 0;
+		min-height: 0;
 	}
 
 	.canvas {
 		position: relative;
+		flex: 1;
 		min-width: 0;
 		min-height: 0;
-		margin: 0 12px 12px 0;
 		overflow: hidden;
-		border-radius: 16px;
-		background: var(--canvas);
+		background-color: var(--canvas);
+		background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
+		background-size: 18px 18px;
+		background-position: center;
 	}
 
-	/* Preview on top, editor below. `order` rather than column-reverse, which opens scrolled
-	   to the bottom of the editor. */
-	@media (max-width: 900px) {
-		.main {
-			display: flex;
-			flex-direction: column;
-			overflow-y: auto;
-		}
+	/* The sidebar's card grows from the rail's width to the panel's; the rail fades out as the
+	   panel fades in, so nothing jumps */
+	.side {
+		position: relative;
+		flex: none;
+		width: var(--rail);
+		margin-left: 12px;
+		overflow: hidden;
+		transition: width 380ms var(--ease);
+	}
 
-		.panel {
-			overflow: visible;
-		}
+	.side.open {
+		width: var(--saved);
+	}
 
-		.canvas {
-			order: -1;
-			flex: none;
-			height: 62vh;
-			margin: 0 12px;
-		}
+	.rail {
+		position: absolute;
+		inset: 0 auto 0 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 10px;
+		width: var(--rail);
+		padding: 14px 0;
+		border: 0;
+		background: none;
+		color: var(--muted-foreground);
+		transition:
+			opacity 220ms ease 160ms,
+			color 150ms ease,
+			background-color 150ms ease;
+	}
 
-		.nav {
-			gap: 14px;
+	.rail:hover {
+		background: var(--muted);
+		color: var(--foreground);
+	}
+
+	.side.open .rail {
+		opacity: 0;
+		transition-delay: 0s;
+	}
+
+	.rail-label {
+		font-size: 12.5px;
+		letter-spacing: 0.02em;
+		writing-mode: vertical-rl;
+	}
+
+	.count {
+		min-width: 20px;
+		padding: 0 5px;
+		border-radius: 99px;
+		background: var(--tint);
+		font-size: 11.5px;
+		line-height: 18px;
+		text-align: center;
+	}
+
+	.side-panel {
+		position: absolute;
+		inset: 0 auto 0 0;
+		display: flex;
+		width: var(--saved);
+		opacity: 0;
+		transition: opacity 140ms ease;
+	}
+
+	.side.open .side-panel {
+		opacity: 1;
+		transition: opacity 260ms ease 140ms;
+	}
+
+	.side-panel > :global(.saved) {
+		flex: 1;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.side,
+		.rail,
+		.side-panel {
+			transition: none;
 		}
 	}
 
-	/* Phones: Stub and Save on the first row, the other links on the second */
-	@media (max-width: 600px) {
+	@media (max-width: 1180px) {
 		.app {
-			grid-template-rows: auto minmax(0, 1fr);
+			--editor: 340px;
+			--saved: 272px;
 		}
 
+		.wide {
+			padding: 0 8px;
+		}
+	}
+
+	/* Phones: Stub, New and Save on top; the view tabs and the rest under them; one view at a time */
+	@media (max-width: 760px) {
 		.top {
 			flex-wrap: wrap;
-			justify-content: flex-start;
-			column-gap: 18px;
-			row-gap: 2px;
-			padding: 10px 12px 6px 16px;
+			gap: 6px 8px;
+			height: auto;
+			padding: 10px 10px 8px 12px;
 		}
 
-		.brand {
+		.lead {
+			width: auto;
+			padding-left: 4px;
+		}
+
+		.lead .mode,
+		.wide {
+			display: none;
+		}
+
+		.actions {
+			order: 1;
+			margin-left: 0;
+			padding-left: 0;
+			box-shadow: none;
+		}
+
+		.break {
+			display: block;
+			order: 2;
+			flex-basis: 100%;
+		}
+
+		.views {
+			display: block;
+			order: 3;
 			margin-right: auto;
 		}
 
-		.nav {
-			display: contents;
+		.links {
+			order: 4;
 		}
 
-		.nav > :global(*) {
-			order: 3;
+		.more {
+			display: flex;
 		}
 
-		.nav > :global(.save) {
-			order: 1;
+		.main {
+			display: flex;
+			flex-direction: column;
+			padding: 0 10px 10px;
 		}
 
-		.nav > :global(.toggle) {
-			margin-left: auto;
+		.panel,
+		.work {
+			flex: 1;
 		}
 
-		.nav > .sep {
-			order: 2;
-			flex-basis: 100%;
-			height: 0;
+		.panel {
+			padding-bottom: 24px;
+		}
+
+		.side {
+			flex: 1;
+			width: auto;
 			margin: 0;
+			transition: none;
+		}
+
+		.rail {
+			display: none;
+		}
+
+		.side-panel {
+			position: static;
+			width: auto;
+			flex: 1;
+			opacity: 1;
+			transition: none;
+		}
+
+		.main:not([data-view='edit']) .panel,
+		.main[data-view='edit'] .work,
+		.main[data-view='preview'] .side,
+		.main[data-view='saved'] .canvas {
+			display: none;
 		}
 	}
 </style>

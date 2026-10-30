@@ -34,6 +34,9 @@
 		return Number.isFinite(n) ? n : undefined;
 	}
 
+	/** Text that isn't a number stays in the field, flagged, rather than quietly disappearing */
+	const invalid = $derived(text.trim() !== '' && parse(text) === undefined);
+
 	// Follow outside changes (undo, loading a receipt), but never rewrite what's being typed
 	$effect.pre(() => {
 		const next = format(value);
@@ -50,12 +53,14 @@
 	inputmode="decimal"
 	spellcheck="false"
 	value={text}
+	aria-invalid={invalid || undefined}
+	data-tip={invalid ? 'Not a number' : undefined}
 	oninput={(e) => {
 		text = e.currentTarget.value;
 		value = parse(text);
 	}}
 	onblur={(e) => {
-		text = format(value);
+		if (!invalid) text = format(value);
 		onblur?.(e);
 	}}
 />

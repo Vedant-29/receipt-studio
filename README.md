@@ -20,9 +20,11 @@ The full clip is in [docs/demo.mp4](docs/demo.mp4).
 ## Using the website
 
 - Edit on the left. The preview on the right is what gets saved.
-- Press ⌘S (Ctrl S on Windows and Linux) to save in the format shown next to the Save button. Files go to your Downloads folder. In Chrome and Edge you can instead pick a folder once in Settings, and saves go straight into it.
-- New starts the next receipt for the same store, with the order number bumped.
-- Saved lists the receipts you've saved in this browser. Click one to keep editing it.
+- Press ⌘S (Ctrl S on Windows and Linux) to save in the format shown on the Save button. Files go to your Downloads folder. In Chrome and Edge you can instead pick a folder once in Settings, and saves go straight into it.
+- New starts the next receipt for the same store with the order number bumped, a blank one or the example. It also imports and exports a receipt as JSON.
+- Switch the editor from Form to JSON to edit the receipt as the same JSON the API takes. It's checked as you type: anything Stub would ignore, clamp or misread is flagged with its line, and the preview waits until the JSON is valid. The form flags values it can't use too.
+- The Saved rail on the right opens into a sidebar with a preview of each receipt you've saved in this browser. Click one to keep editing it.
+- Keyboard: ⌘S saves, `N` new, `F` format, `J` form or JSON, `H` saved receipts, `A` API, `,` settings, `D` dark mode, `1` to `4` templates, `+` `-` `0` zoom. `?` lists them all.
 - The draft, your settings and saved receipts are kept in this browser, so a refresh loses nothing. None of it is stored on a server.
 
 ## API
@@ -111,6 +113,7 @@ All optional, and all for the local app.
 | `PORT` | `4545` | Port to listen on. The next free one is used if it's taken. |
 | `HOST` | `127.0.0.1` | Set to `0.0.0.0` to reach the app from other devices on your network |
 | `ALLOWED_HOSTS` | none | Extra hostnames to accept while on localhost, comma separated |
+| `PROTOCOL_HEADER` | none | Behind an HTTPS proxy, the header that carries the protocol, such as `x-forwarded-proto` |
 | `CHROME_PATH` | found automatically | Path to Chrome, Chromium, Edge or Brave |
 | `RECEIPTS_DIR` | `~/Documents/Receipts` | Save folder until you change it in Settings |
 | `STUB_DATA` | `./data` | Where settings, the draft and the save history are kept |

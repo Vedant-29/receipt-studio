@@ -2,7 +2,9 @@
 	interface Option {
 		value: T;
 		label: string;
+		/** Tooltip, with the option's key when it has one */
 		title?: string;
+		key?: string;
 	}
 
 	interface Props {
@@ -11,19 +13,22 @@
 		label?: string;
 		/** Pull the first option left so its text lines up with the values around it */
 		flush?: boolean;
+		/** A tinted track with the choice raised in it, for switches in a toolbar */
+		segmented?: boolean;
 	}
 
-	let { options, value = $bindable(), label, flush = false }: Props = $props();
+	let { options, value = $bindable(), label, flush = false, segmented = false }: Props = $props();
 </script>
 
-<div class="tabs" class:flush role="radiogroup" aria-label={label}>
+<div class="tabs" class:flush class:segmented role="radiogroup" aria-label={label}>
 	{#each options as option (option.value)}
 		<button
 			type="button"
 			role="radio"
 			aria-checked={value === option.value}
 			class:on={value === option.value}
-			title={option.title}
+			data-tip={option.title}
+			data-keys={option.key}
 			onclick={() => (value = option.value)}>{option.label}</button
 		>
 	{/each}
@@ -39,6 +44,22 @@
 
 	.flush {
 		margin-left: -9px;
+	}
+
+	.segmented {
+		flex-wrap: nowrap;
+		padding: 2px;
+		border-radius: 9px;
+		background: var(--tint);
+	}
+
+	.segmented button {
+		height: 28px;
+		padding: 0 12px;
+	}
+
+	.segmented button.on {
+		background: var(--chip);
 	}
 
 	button {

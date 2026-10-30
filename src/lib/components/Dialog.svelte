@@ -24,7 +24,8 @@
 
 <dialog
 	bind:this={dialog}
-	style:width="min({width}px, calc(100vw - 32px))"
+	style:--width="{width}px"
+	aria-label={title}
 	onclose={() => (open = false)}
 	onclick={(e) => {
 		// The sheet fills the dialog, so a click on the dialog itself landed on the backdrop
@@ -52,11 +53,13 @@
 
 <style>
 	dialog {
-		max-height: calc(100vh - 64px);
+		width: min(var(--width), calc(100vw - 32px));
+		max-width: none;
+		max-height: calc(100dvh - 64px);
 		padding: 0;
-		border: 1px solid var(--border);
-		border-radius: 16px;
-		background: var(--background);
+		border: 0;
+		border-radius: 18px;
+		background: var(--surface);
 		color: var(--foreground);
 		box-shadow: var(--shadow-lg);
 	}
@@ -66,11 +69,12 @@
 	}
 
 	dialog::backdrop {
-		background: rgb(0 0 0 / 0.18);
+		background: rgb(0 0 0 / 0.2);
+		backdrop-filter: blur(2px);
 	}
 
 	:global(.dark) dialog::backdrop {
-		background: rgb(0 0 0 / 0.5);
+		background: rgb(0 0 0 / 0.45);
 	}
 
 	dialog[open]::backdrop {
@@ -94,7 +98,7 @@
 	.sheet {
 		display: flex;
 		flex-direction: column;
-		max-height: calc(100vh - 64px);
+		max-height: calc(100dvh - 64px);
 		outline: none;
 	}
 
@@ -103,7 +107,7 @@
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 16px;
-		padding: 22px 18px 0 24px;
+		padding: 20px 16px 0 24px;
 	}
 
 	h2 {
@@ -120,14 +124,61 @@
 
 	.content {
 		overflow: auto;
-		padding: 16px 24px 24px;
+		padding: 18px 24px 24px;
 	}
 
+	.content:has(+ footer) {
+		padding-bottom: 8px;
+	}
+
+	/* Just the buttons, right-aligned, primary last */
 	footer {
 		display: flex;
 		align-items: center;
-		gap: 16px;
-		padding: 14px 24px;
-		border-top: 1px solid var(--border);
+		justify-content: flex-end;
+		gap: 8px;
+		padding: 8px 16px 16px;
+	}
+
+	/* Phones: a sheet that comes up from the bottom edge */
+	@media (max-width: 600px) {
+		dialog {
+			width: 100%;
+			max-height: calc(100dvh - 40px);
+			margin: auto 0 0;
+			border-radius: 20px 20px 0 0;
+		}
+
+		dialog[open] {
+			animation: rise-sheet 320ms var(--ease);
+		}
+
+		.sheet {
+			max-height: calc(100dvh - 40px);
+			padding-bottom: env(safe-area-inset-bottom);
+		}
+
+		header {
+			padding: 18px 12px 0 20px;
+		}
+
+		.content {
+			padding: 16px 20px 22px;
+		}
+
+		.content:has(+ footer) {
+			padding-bottom: 8px;
+		}
+
+		footer {
+			padding: 8px 12px 12px;
+		}
+	}
+
+	@keyframes rise-sheet {
+		from {
+			transform: translateY(24px);
+			opacity: 0;
+		}
 	}
 </style>

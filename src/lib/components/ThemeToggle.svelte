@@ -20,7 +20,7 @@
 	}
 
 	function onkeydown(e: KeyboardEvent) {
-		if (e.key === 'd' && !e.metaKey && !e.ctrlKey && !e.altKey && !typing(e)) toggle();
+		if (e.key.toLowerCase() === 'd' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.defaultPrevented && !typing(e)) toggle();
 	}
 </script>
 
@@ -32,7 +32,8 @@
 	class:dark
 	type="button"
 	aria-label="Switch to {dark ? 'light' : 'dark'} theme"
-	data-tip="{dark ? 'Light' : 'Dark'} theme · D"
+	data-tip="{dark ? 'Light' : 'Dark'} theme"
+	data-keys="D"
 	onclick={toggle}
 >
 	<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">

@@ -46,6 +46,8 @@
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ hash: key.hash })
 		});
+		// Read the (empty) body, or Chrome lists the request as cancelled
+		await res.text().catch(() => '');
 		if (!res.ok && res.status !== 404) return toasts.error("Couldn't revoke that key. Try again.");
 		keys = keys.filter((k) => k.hash !== key.hash);
 		saveKeys(keys);
@@ -53,13 +55,12 @@
 	}
 </script>
 
-<div class="keys">
+<div class="group">
 	{#if fresh}
-		<div class="fresh">
-			<code>{fresh}</code>
+		<div class="prop fresh">
+			<code class="v key">{fresh}</code>
 			<CopyButton text={fresh} />
 		</div>
-		<p class="note">Copy it now. This is the only time it's shown; Stub keeps a fingerprint of the key, not the key.</p>
 	{/if}
 
 	{#each keys as key (key.hash)}
@@ -72,36 +73,49 @@
 
 	<div class="prop">
 		<span class="k">New key</span>
-		<input {...noAutofill} class="v" bind:value={label} placeholder="Label, optional" maxlength="40" aria-label="Key label" />
+		<input {...noAutofill} class="v" name="key-label" bind:value={label} placeholder="Label, optional" maxlength="40" aria-label="Key label" />
 		<button class="quiet on" type="button" disabled={busy} onclick={create}>{busy ? 'Checking…' : 'Create key'}</button>
 	</div>
-	<!-- Cloudflare's check renders here, and only shows itself if it needs a click -->
-	<div class="check" bind:this={check}></div>
-
-	<p class="note">
-		Each key can make {LIMITS.requestsPerMinute} requests a minute and {LIMITS.rendersPerKeyPerDay} images or PDFs a day.
-		HTML only counts toward the per-minute limit.
-	</p>
 </div>
+<!-- Cloudflare's check renders here, and only shows itself if it needs a click -->
+<div class="check" bind:this={check}></div>
+
+{#if fresh}
+	<p class="note">Copy it now. This is the only time it's shown; Stub keeps a fingerprint of the key, not the key.</p>
+{/if}
+<p class="note">
+	Each key can make {LIMITS.requestsPerMinute} requests a minute and {LIMITS.rendersPerKeyPerDay} images or PDFs a day.
+	HTML only counts toward the per-minute limit.
+</p>
 
 <style>
 	.fresh {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 8px 10px;
-		border-radius: 8px;
-		background: var(--muted);
+		margin-top: 4px;
+		margin-bottom: 4px;
+		background: var(--chip);
 	}
 
-	.fresh code {
-		flex: 1;
+	.group .fresh:hover {
+		background: var(--chip);
+	}
+
+	.key {
+		display: flex;
+		align-items: center;
+		height: auto;
+		min-height: 32px;
+		padding: 6px 0;
 		overflow-wrap: anywhere;
 		font-size: 12.5px;
 	}
 
 	.k {
 		font-size: 12.5px;
+	}
+
+	code.k {
+		display: flex;
+		align-items: center;
 	}
 
 	.made {
@@ -117,12 +131,6 @@
 	}
 
 	.check:not(:empty) {
-		margin: 8px 0;
-	}
-
-	.note {
-		margin: 8px 0 0;
-		color: var(--muted-foreground);
-		font-size: 13px;
+		margin: 10px 0 0;
 	}
 </style>

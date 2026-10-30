@@ -1,9 +1,9 @@
 <script lang="ts">
-	let { checked = $bindable(false), label }: { checked?: boolean; label?: string } = $props();
+	let { checked = $bindable(false), label, name }: { checked?: boolean; label?: string; name?: string } = $props();
 </script>
 
 <label class="toggle">
-	<input type="checkbox" bind:checked />
+	<input type="checkbox" {name} bind:checked />
 	<span class="track" aria-hidden="true"><span class="knob"></span></span>
 	{#if label}<span class="text">{label}</span>{/if}
 </label>
@@ -43,7 +43,7 @@
 		width: 11px;
 		height: 11px;
 		border-radius: 50%;
-		background: var(--background);
+		background: var(--surface);
 		transition: transform 250ms var(--ease);
 	}
 

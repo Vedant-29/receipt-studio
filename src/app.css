@@ -1,38 +1,59 @@
 @import '@fontsource-variable/geist';
 
-/* Plain neutrals, no accent colour. Dark mode is a `.dark` class on <html>,
-   set before paint by the script in app.html and flipped by the theme toggle. */
+/* Plain neutrals, no accent colour. The page is the desk and everything you work in sits on it
+   as a flat card, told apart by colour alone (no borders, no shadows). Only things that float
+   above the page (menus, dialogs, toasts) cast a shadow. Dark mode is charcoal, not black.
+   Dark mode is a `.dark` class on <html>, set before paint by the script in app.html and
+   flipped by the theme toggle. */
 :root {
 	color-scheme: light;
-	--background: #ffffff;
+	--background: #efefef;
+	/* Cards, and the dialogs and menus that float above them */
+	--surface: #ffffff;
+	--elevated: #ffffff;
 	--foreground: #171717;
-	--muted: #f6f6f6;
+	/* Tints inside a card: hover, focus and grouped rows */
+	--muted: #f4f4f4;
 	--muted-foreground: #737373;
-	--accent: #efefef;
-	--border: #ececec;
-	--ring: #c9c9c9;
-	--canvas: #f5f5f5;
+	--accent: #ebebeb;
+	/* A selected option sitting on a tinted group */
+	--chip: #ffffff;
+	--border: #e9e9e9;
+	--ring: #c4c4c4;
+	--canvas: #fafafa;
+	--canvas-dot: #e3e3e3;
 	--danger: #d93025;
 	--paper-shadow: drop-shadow(0 1px 1px rgb(0 0 0 / 0.04)) drop-shadow(0 12px 28px rgb(0 0 0 / 0.07));
-	--shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.06);
+	--shadow-lg: 0 0 0 1px rgb(0 0 0 / 0.04), 0 12px 32px -6px rgb(0 0 0 / 0.12), 0 4px 8px -4px rgb(0 0 0 / 0.06);
+	/* Small toolbars floating over the preview */
+	--float-shadow: 0 0 0 1px rgb(0 0 0 / 0.05), 0 2px 8px rgb(0 0 0 / 0.06);
 	--sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
 	--mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 	--ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--radius: 14px;
+	/* Buttons tint whatever they sit on, so they work on the page, a card or a dialog */
+	--tint: color-mix(in oklab, var(--foreground) 7%, transparent);
+	--tint-strong: color-mix(in oklab, var(--foreground) 11%, transparent);
 }
 
 .dark {
 	color-scheme: dark;
-	--background: #0c0c0c;
-	--foreground: #ededed;
-	--muted: #161616;
-	--muted-foreground: #8f8f8f;
-	--accent: #222222;
-	--border: #222222;
-	--ring: #4a4a4a;
-	--canvas: #121212;
-	--danger: #ff6b5e;
-	--paper-shadow: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)) drop-shadow(0 16px 36px rgb(0 0 0 / 0.55));
-	--shadow-lg: 0 10px 24px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+	--background: #161616;
+	--surface: #202020;
+	--elevated: #262626;
+	--foreground: #ececec;
+	--muted: #2a2a2a;
+	--muted-foreground: #9b9b9b;
+	--accent: #333333;
+	--chip: #3a3a3a;
+	--border: #2f2f2f;
+	--ring: #565656;
+	--canvas: #1d1d1d;
+	--canvas-dot: #2b2b2b;
+	--danger: #ff7b6e;
+	--paper-shadow: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)) drop-shadow(0 14px 30px rgb(0 0 0 / 0.4));
+	--shadow-lg: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 36px -6px rgb(0 0 0 / 0.55), 0 4px 8px -4px rgb(0 0 0 / 0.4);
+	--float-shadow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 2px 10px rgb(0 0 0 / 0.35);
 }
 
 *,
@@ -45,6 +66,15 @@ html,
 body {
 	height: 100%;
 	margin: 0;
+}
+
+/* The app is a fixed frame with its own scrolling panels, so nothing should rubber-band:
+   not the page (that only takes effect on html, not body), and not a panel that reaches its
+   end and hands the leftover scroll to the page. */
+html,
+body,
+* {
+	overscroll-behavior: none;
 }
 
 html {
@@ -126,6 +156,19 @@ code {
 
 .prop:focus-within {
 	background: var(--muted);
+}
+
+/* A value the receipt can't use: the row reddens and says why underneath */
+.prop.invalid,
+.prop:has([aria-invalid='true']) {
+	background: color-mix(in oklab, var(--danger) 9%, transparent);
+}
+
+.field-error {
+	margin: 2px 0 6px;
+	color: var(--danger);
+	font-size: 12.5px;
+	line-height: 1.4;
 }
 
 .prop.top {
@@ -224,8 +267,9 @@ select.v {
 		background-color 200ms ease;
 }
 
-.icon-btn:hover {
-	background: var(--muted);
+.icon-btn:hover,
+.icon-btn.on {
+	background: var(--tint);
 	color: var(--foreground);
 }
 
@@ -233,12 +277,12 @@ select.v {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	height: 30px;
+	height: 32px;
 	padding: 0 12px;
 	border: 0;
 	border-radius: 8px;
 	background: var(--foreground);
-	color: var(--background);
+	color: var(--surface);
 	font-weight: 500;
 	white-space: nowrap;
 	transition: opacity 200ms ease;
@@ -253,10 +297,149 @@ select.v {
 	pointer-events: none;
 }
 
+/* The second kind of button: a flat tint, for actions next to Save */
+.secondary {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 32px;
+	padding: 0 10px 0 11px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--tint);
+	color: var(--foreground);
+	font-weight: 500;
+	white-space: nowrap;
+	transition: background-color 200ms ease;
+}
+
+.secondary:hover,
+.secondary.on {
+	background: var(--tint-strong);
+}
+
+/* Text buttons in a toolbar: no fill until hovered or switched on */
+.ghost {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 32px;
+	padding: 0 10px;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: var(--muted-foreground);
+	white-space: nowrap;
+	transition:
+		color 200ms ease,
+		background-color 200ms ease;
+}
+
+.ghost:hover,
+.ghost.on {
+	background: var(--tint);
+	color: var(--foreground);
+}
+
+.secondary:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+/* ---------- cards ---------- */
+
+.card {
+	border-radius: var(--radius);
+	background: var(--surface);
+}
+
+/* A tinted block of rows inside a card or dialog, like a settings group */
+.group {
+	padding: 4px 14px;
+	border-radius: 12px;
+	background: var(--muted);
+}
+
+.group .prop {
+	margin: 0 -8px;
+	padding: 0 8px;
+}
+
+.group .prop:hover,
+.group .prop:focus-within {
+	background: color-mix(in oklab, var(--accent) 70%, transparent);
+}
+
+.group [role='radio'][aria-checked='true'] {
+	background: var(--chip);
+}
+
+.group + .group {
+	margin-top: 12px;
+}
+
+.group-title {
+	margin: 0 0 6px 2px;
+	color: var(--muted-foreground);
+	font-size: 12.5px;
+}
+
+* + .group-title {
+	margin-top: 18px;
+}
+
+/* JSON you can edit: a tinted block of monospace text */
+.code {
+	display: block;
+	width: 100%;
+	margin: 0;
+	padding: 12px 14px;
+	border: 0;
+	border-radius: 10px;
+	outline: none;
+	background: var(--muted);
+	color: var(--foreground);
+	font-family: var(--mono);
+	font-size: 12.5px;
+	line-height: 1.6;
+	white-space: pre;
+	tab-size: 2;
+	resize: none;
+	transition: background-color 200ms ease;
+}
+
+/* Like the property rows: a deeper tint while you type, never a box */
+.code:focus {
+	background: color-mix(in oklab, var(--accent) 55%, var(--muted));
+}
+
+.code::placeholder {
+	color: var(--muted-foreground);
+}
+
+/* Small print under a group or a card */
+.note {
+	margin: 10px 0 0 2px;
+	color: var(--muted-foreground);
+	font-size: 13px;
+}
+
 .kbd {
-	font-size: 12px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 20px;
+	height: 20px;
+	padding: 0 5px;
+	border-radius: 5px;
+	background: var(--tint);
+	color: var(--muted-foreground);
+	font-family: var(--sans);
+	font-size: 11.5px;
+	font-weight: 500;
+	line-height: 1;
 	font-variant-numeric: tabular-nums;
-	opacity: 0.55;
+	white-space: nowrap;
 }
 
 /* ---------- menus ---------- */
@@ -279,7 +462,7 @@ select.v {
 
 .menu-item:hover,
 .menu-item:focus-visible {
-	background: var(--muted);
+	background: var(--accent);
 	outline: none;
 }
 
@@ -299,49 +482,100 @@ select.v {
 	background: var(--border);
 }
 
-/* ---------- tooltips: data-tip="Label" ---------- */
+/* Tooltips (data-tip, data-keys) are drawn by components/Tooltip.svelte */
 
-[data-tip] {
-	position: relative;
+
+/* ---------- menus: rows with an icon, a line of detail and a key ---------- */
+
+.menu-label {
+	margin: 6px 10px 4px;
+	color: var(--muted-foreground);
+	font-size: 12px;
 }
 
-/* Only generated while hovered, so hidden tips never widen a scroll area */
-@media (hover: hover) {
-	[data-tip]:hover::after {
-		content: attr(data-tip);
-		position: absolute;
-		top: calc(100% + 8px);
-		left: 50%;
-		z-index: 60;
-		padding: 4px 8px;
-		border-radius: 6px;
-		background: var(--foreground);
-		color: var(--background);
-		font-size: 12px;
-		font-weight: 400;
-		line-height: 1.4;
-		white-space: nowrap;
-		pointer-events: none;
-		transform: translateX(-50%);
-		animation: tip 150ms ease 220ms both;
-	}
-
-	[data-tip][data-tip-side='top']:hover::after {
-		top: auto;
-		bottom: calc(100% + 8px);
-	}
-
-	[data-tip][data-tip-align='end']:hover::after {
-		left: auto;
-		right: 0;
-		transform: none;
-	}
+.menu-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 6px 8px;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: var(--foreground);
+	text-align: left;
+	transition: background-color 120ms ease;
 }
 
-@keyframes tip {
-	from {
-		opacity: 0;
-		translate: 0 -2px;
+.menu-row:hover,
+.menu-row:focus-visible {
+	background: var(--accent);
+	outline: none;
+}
+
+.menu-row:disabled {
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+.menu-icon {
+	display: grid;
+	flex: none;
+	width: 28px;
+	height: 28px;
+	place-items: center;
+	border-radius: 7px;
+	background: var(--muted);
+	color: var(--muted-foreground);
+}
+
+.menu-row:hover .menu-icon,
+.menu-row:focus-visible .menu-icon {
+	background: var(--surface);
+	color: var(--foreground);
+}
+
+.menu-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.3;
+}
+
+.menu-sub {
+	overflow: hidden;
+	color: var(--muted-foreground);
+	font-size: 12.5px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.menu-foot {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin: 4px -4px -4px;
+	padding: 8px 12px;
+	background: color-mix(in oklab, var(--muted) 60%, transparent);
+	color: var(--muted-foreground);
+	font-size: 12px;
+}
+
+.menu-foot .kbd + span {
+	overflow: hidden;
+	margin-right: 8px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Key hints mean nothing on a touch screen without a keyboard */
+@media (hover: none) and (pointer: coarse) {
+	.menu-row .kbd,
+	.menu-foot,
+	.tiles .kbd,
+	.scale .kbd {
+		display: none;
 	}
 }
 

@@ -85,6 +85,7 @@
 		</button>
 		<input
 			class="size"
+			name="store.image.width"
 			type="range"
 			min="10"
 			max="100"
@@ -108,13 +109,14 @@
 		<input
 			{...noAutofill}
 			class="v"
+			name="store.image.url"
 			placeholder="or paste a link"
 			bind:value={link}
 			onchange={useLink}
 			onkeydown={(e) => e.key === 'Enter' && useLink()}
 		/>
 	{/if}
-	<input type="file" accept="image/*" hidden bind:this={file} onchange={(e) => upload(e.currentTarget.files?.[0])} />
+	<input type="file" name="logo-file" accept="image/*" hidden bind:this={file} onchange={(e) => upload(e.currentTarget.files?.[0])} />
 </div>
 
 <LogoPicker bind:open={choosing} onpick={pick} onupload={() => file?.click()} />

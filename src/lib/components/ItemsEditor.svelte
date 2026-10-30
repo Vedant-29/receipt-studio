@@ -12,7 +12,27 @@
 	import { noAutofill } from '#lib/ui.js';
 	import NumberInput from './NumberInput.svelte';
 
-	let { items = $bindable(), decimals = 2 }: { items: Item[]; decimals?: number } = $props();
+	interface Props {
+		items: Item[];
+		decimals?: number;
+		/** Problems by path (content.items[1].quantity), from the editor's checks */
+		problems?: Map<string, string>;
+	}
+
+	let { items = $bindable(), decimals = 2, problems = new Map() }: Props = $props();
+
+	const FIELDS = [
+		['quantity', 'Quantity'],
+		['price', 'Price'],
+		['discount', 'Discount']
+	] as const;
+
+	/** What's wrong with one row, as sentences */
+	const rowProblems = (i: number) =>
+		FIELDS.flatMap(([field, label]) => {
+			const message = problems.get(`content.items[${i}].${field}`);
+			return message ? [`${label} ${message}`] : [];
+		});
 
 	let list: HTMLElement | undefined = $state();
 	let dragging = $state<Item | null>(null);
@@ -80,7 +100,15 @@
 <div class="items" bind:this={list}>
 	{#each items as item, i (item)}
 		{@const open = opened.has(item)}
-		<div class="item" class:open class:dragging={dragging === item} data-row animate:flip={{ duration: 220, easing: cubicOut }}>
+		{@const wrong = rowProblems(i)}
+		<div
+			class="item"
+			class:open
+			class:invalid={wrong.length}
+			class:dragging={dragging === item}
+			data-row
+			animate:flip={{ duration: 220, easing: cubicOut }}
+		>
 			<div class="line">
 				<button
 					class="grip"
@@ -92,16 +120,18 @@
 				<input
 					{...noAutofill}
 					class="v name"
+					name="items.{i}.name"
 					data-name
 					bind:value={item.name}
 					placeholder="Item"
 					aria-label="Item name"
 					onkeydown={(e) => onNameKey(e, item, i)}
 				/>
-				<NumberInput class="v qty num" bind:value={item.quantity} placeholder="1" aria-label="Quantity" />
+				<NumberInput class="v qty num" name="items.{i}.quantity" bind:value={item.quantity} placeholder="1" aria-label="Quantity" />
 				<span class="times" aria-hidden="true">×</span>
 				<NumberInput
 					class="v price num"
+					name="items.{i}.price"
 					zeroAsEmpty
 					{decimals}
 					bind:value={() => item.price, (v) => (item.price = v ?? 0)}
@@ -125,15 +155,16 @@
 					<span class="chev" class:open><ChevronRight size={12} strokeWidth={2} /></span>
 				</button>
 			</div>
+			{#each wrong as message (message)}<p class="field-error" role="alert">{message}</p>{/each}
 			{#if open}
 				<div class="details" transition:slide={{ duration: 220, easing: cubicOut }}>
 					<label class="prop">
 						<span class="k">Discount</span>
-						<NumberInput class="v num" {decimals} bind:value={item.discount} placeholder={zero} />
+						<NumberInput class="v num" name="items.{i}.discount" {decimals} bind:value={item.discount} placeholder={zero} />
 					</label>
 					<label class="prop">
 						<span class="k">Note</span>
-						<input {...noAutofill} class="v" bind:value={item.notes} placeholder="Printed under the item" />
+						<input {...noAutofill} class="v" name="items.{i}.notes" bind:value={item.notes} placeholder="Printed under the item" />
 					</label>
 					<button class="quiet remove" type="button" onclick={() => remove(item)}>Remove item</button>
 				</div>
@@ -173,6 +204,14 @@
 	.item.open {
 		margin: 6px -10px;
 		padding: 2px 10px 8px;
+	}
+
+	.item.invalid {
+		background: color-mix(in oklab, var(--danger) 9%, transparent);
+	}
+
+	.item.invalid .field-error {
+		margin: 0 0 6px;
 	}
 
 	.item.dragging {

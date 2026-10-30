@@ -1,18 +1,24 @@
 <script lang="ts">
 	import { noAutofill } from '#lib/ui.js';
 
-	let { value = $bindable(), fallback, label }: { value: string | undefined; fallback: string; label: string } = $props();
+	let {
+		value = $bindable(),
+		fallback,
+		label,
+		name
+	}: { value: string | undefined; fallback: string; label: string; name: string } = $props();
 
 	const hex = $derived(/^#[0-9a-f]{6}$/i.test(value ?? '') ? (value as string) : fallback);
 </script>
 
 <span class="color">
 	<label class="swatch" style:background={value || fallback} aria-label="Pick {label}">
-		<input type="color" value={hex} oninput={(e) => (value = e.currentTarget.value)} />
+		<input type="color" name="{name}-picker" value={hex} oninput={(e) => (value = e.currentTarget.value)} />
 	</label>
 	<input
 		{...noAutofill}
 		class="v mono"
+		{name}
 		value={value ?? ''}
 		placeholder={fallback}
 		spellcheck="false"
