@@ -623,7 +623,6 @@
 						<ReceiptsPanel
 							entries={history}
 							current={currentId}
-							loading={false}
 							{formatLabel}
 							load={loadReceipt}
 							onopen={open}

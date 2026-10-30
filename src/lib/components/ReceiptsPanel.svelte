@@ -13,7 +13,6 @@
 		entries: ReceiptSummary[];
 		/** The receipt open in the editor */
 		current: string | null;
-		loading: boolean;
 		/** Format shown on the download buttons */
 		formatLabel: string;
 		load: (id: string) => Promise<Receipt>;
@@ -25,7 +24,7 @@
 		onclose?: () => void;
 	}
 
-	let { entries, current, loading, formatLabel, load, onopen, ondownload, onduplicate, ondelete, onclose }: Props = $props();
+	let { entries, current, formatLabel, load, onopen, ondownload, onduplicate, ondelete, onclose }: Props = $props();
 
 	let query = $state('');
 	const shown = $derived.by(() => {
@@ -62,9 +61,7 @@
 		</label>
 	{/if}
 
-	{#if loading && entries.length === 0}
-		<p class="empty muted">Loading your receipts…</p>
-	{:else if entries.length === 0}
+	{#if entries.length === 0}
 		<div class="empty">
 			<p>No receipts yet.</p>
 			<p class="muted">Everything you make is saved here as you edit, ready to reopen or download.</p>

@@ -4,7 +4,7 @@ export const problem = (status: number, error: string, headers?: HeadersInit) =>
 export const notFound = () => problem(404, 'Not found');
 
 /** Bodies bigger than this are refused before they're read (receipts carry their logo inline) */
-export const MAX_BODY = 2_000_000;
+const MAX_BODY = 2_000_000;
 
 /** A JSON object body, or null. Oversized bodies are refused unread. */
 export async function readBody(request: Request): Promise<Record<string, unknown> | null> {

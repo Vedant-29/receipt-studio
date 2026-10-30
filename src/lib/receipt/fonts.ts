@@ -1,4 +1,4 @@
-export interface FontOption {
+interface FontOption {
 	family: string;
 	label: string;
 	/** Google Fonts css2 family spec, used for HTML output */

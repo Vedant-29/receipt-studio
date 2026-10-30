@@ -92,7 +92,7 @@ export interface LogoOption {
 
 const logo = (id: string, name: string, icon: string, keywords = ''): LogoOption => ({ id, name, icon, keywords });
 
-export const LOGOS: LogoOption[] = [
+const LOGOS: LogoOption[] = [
 	logo('coffee', 'Coffee', Coffee, 'cafe espresso latte'),
 	logo('bakery', 'Bakery', Croissant, 'pastry patisserie'),
 	logo('bread', 'Bread', Wheat, 'bakery grain'),
@@ -189,7 +189,7 @@ function shapes(icon: string): string {
 }
 
 /** A square mark: the icon in an outlined ring, on a solid disc, or on its own */
-export function logoSvg(icon: string, style: LogoStyle): string {
+function logoSvg(icon: string, style: LogoStyle): string {
 	const glyph = (size: number, colour: string, width: number) => {
 		const offset = (120 - size) / 2;
 		return (

@@ -16,7 +16,7 @@ import {
 } from '#lib/receipt/index.js';
 
 /** A receipt where every nested object exists, so form fields can bind straight to it */
-export interface DraftContent extends ReceiptContent {
+interface DraftContent extends ReceiptContent {
 	store: Store & { image: StoreImage };
 	customer: Customer;
 	items: Item[];
@@ -116,7 +116,7 @@ export function checkReceiptJson(text: string): CheckedJson {
 }
 
 /** "0042" → "0043", "A9" → "A10", "ORD-2026-7" → "ORD-2026-8" */
-export function increment(code: string): string {
+function increment(code: string): string {
 	const m = /^(.*?)(\d+)(\D*)$/.exec(code);
 	if (!m) return code;
 	return m[1] + String(Number(m[2]) + 1).padStart(m[2].length, '0') + m[3];

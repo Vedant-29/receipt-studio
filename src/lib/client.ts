@@ -27,7 +27,6 @@ async function call<T>(url: string, method = 'GET', body?: unknown, init?: Reque
 
 export const api = {
 	receipts: {
-		list: () => call<ReceiptSummary[]>('/api/receipts'),
 		get: (id: string) => call<ReceiptSummary & { receipt: Receipt }>(`/api/receipts/${id}`),
 		create: (receipt: Receipt) => call<ReceiptSummary>('/api/receipts', 'POST', { receipt }),
 		/** keepalive lets a last save finish while the tab closes */

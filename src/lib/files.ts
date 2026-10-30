@@ -13,7 +13,7 @@ const MIME: Record<OutputFormat, string> = {
 	pdf: 'application/pdf'
 };
 
-export async function makeFile(receipt: Receipt, format: OutputFormat, scale: number): Promise<Blob> {
+async function makeFile(receipt: Receipt, format: OutputFormat, scale: number): Promise<Blob> {
 	if (format === 'html') {
 		return new Blob([renderDocument(receipt, { fonts: 'google', layout: 'page' })], { type: MIME.html });
 	}

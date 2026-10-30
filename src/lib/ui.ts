@@ -6,7 +6,7 @@ export const noAutofill = {
 	'data-form-type': 'other'
 } as const;
 
-export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
 export const modKey = isMac ? '⌘' : 'Ctrl ';
 
 /** True while the user is typing somewhere, so single-key shortcuts stay out of the way */

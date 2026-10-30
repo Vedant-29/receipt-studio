@@ -1,4 +1,4 @@
-export interface ToastAction {
+interface ToastAction {
 	label: string;
 	run: () => void;
 }

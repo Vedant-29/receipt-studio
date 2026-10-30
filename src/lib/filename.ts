@@ -36,4 +36,3 @@ export function fileBase(receipt: Receipt, custom?: string): string {
 }
 
 /** name.png, then name-2.png, name-3.png… */
-export const numbered = (base: string, ext: string, n: number) => (n === 1 ? `${base}.${ext}` : `${base}-${n}.${ext}`);

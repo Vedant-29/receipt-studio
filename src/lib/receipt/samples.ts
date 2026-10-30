@@ -2,7 +2,7 @@ import type { Receipt, TemplateId } from './types';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-export function stamp(now: Date) {
+function stamp(now: Date) {
 	return {
 		date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
 		time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),

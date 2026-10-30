@@ -388,35 +388,6 @@ select.v {
 	margin-top: 18px;
 }
 
-/* JSON you can edit: a tinted block of monospace text */
-.code {
-	display: block;
-	width: 100%;
-	margin: 0;
-	padding: 12px 14px;
-	border: 0;
-	border-radius: 10px;
-	outline: none;
-	background: var(--muted);
-	color: var(--foreground);
-	font-family: var(--mono);
-	font-size: 12.5px;
-	line-height: 1.6;
-	white-space: pre;
-	tab-size: 2;
-	resize: none;
-	transition: background-color 200ms ease;
-}
-
-/* Like the property rows: a deeper tint while you type, never a box */
-.code:focus {
-	background: color-mix(in oklab, var(--accent) 55%, var(--muted));
-}
-
-.code::placeholder {
-	color: var(--muted-foreground);
-}
-
 /* Small print under a group or a card */
 .note {
 	margin: 10px 0 0 2px;
@@ -471,7 +442,6 @@ select.v {
 	pointer-events: none;
 }
 
-.menu-item .meta,
 .menu-item .kbd {
 	margin-left: auto;
 	color: var(--muted-foreground);

@@ -96,7 +96,7 @@ cp .dev.vars.example .dev.vars   # then fill it in, or leave it empty for signed
 npm run dev
 ```
 
-`npm run dev` serves http://localhost:4545 with hot reload, with Cloudflare's runtime emulated: the home page at `/` and the editor at `/app`. `npm run preview` builds the Worker and runs it on http://localhost:8787 exactly as it runs in production.
+`npm run dev` serves http://localhost:4545 with hot reload, with Cloudflare's runtime emulated: the home page at `/` and the editor at `/app`. `npm run preview` builds the Worker and runs it on http://localhost:8787 exactly as it runs in production. `npm run smoke` checks a running copy (pages, sign-in redirects, API answers, security headers); pass a URL to check another one, such as your live site.
 
 ### Settings
 

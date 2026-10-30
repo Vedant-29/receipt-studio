@@ -18,7 +18,7 @@ async function sha256(text: string): Promise<string> {
 	return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export type KeyCheck =
+type KeyCheck =
 	| { ok: true; minute_left: number; day_left: number }
 	| { ok: false; reason: 'invalid' | 'minute' | 'day'; limit?: number; retry_after?: number };
 

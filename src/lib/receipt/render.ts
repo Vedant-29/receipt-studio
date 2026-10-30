@@ -26,7 +26,7 @@ export function renderReceipt(receipt: Receipt): string {
 	return frame(s, RENDERERS[template](ctx), template === 'ticket' ? '0' : '24px');
 }
 
-export interface DocumentOptions {
+interface DocumentOptions {
 	/** Google Fonts keeps standalone HTML portable; a stylesheet URL uses the bundled fonts */
 	fonts: 'google' | { stylesheet: string };
 	/** "page" centres the receipt on a soft background, "bare" pins it to the top-left for capturing */

@@ -1,4 +1,4 @@
-export interface CurrencyFormat {
+interface CurrencyFormat {
 	symbol: string;
 	decimals: number;
 	/** Put the symbol after the amount */

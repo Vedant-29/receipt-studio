@@ -2,13 +2,13 @@
 // It also explains syntax errors the same way in every browser (each one words JSON.parse's
 // errors differently, and Safari doesn't say where).
 
-export interface SyntaxProblem {
+interface SyntaxProblem {
 	message: string;
 	line: number;
 	column: number;
 }
 
-export type Located =
+type Located =
 	| { lines: Map<string, number>; duplicates: { path: string; line: number }[]; error?: undefined }
 	| { lines?: undefined; duplicates?: undefined; error: SyntaxProblem };
 

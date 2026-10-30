@@ -61,7 +61,7 @@ async function inlineImages(root: Element): Promise<number> {
 	return missing;
 }
 
-export interface Raster {
+interface Raster {
 	blob: Blob;
 	/** CSS pixels */
 	width: number;

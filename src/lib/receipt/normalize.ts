@@ -47,7 +47,7 @@ function compact<T extends object>(o: T): T {
 export const isTemplate = (v: unknown): v is TemplateId =>
 	typeof v === 'string' && (TEMPLATES as readonly string[]).includes(v);
 
-export function normalizeContent(value: unknown): ReceiptContent {
+function normalizeContent(value: unknown): ReceiptContent {
 	const c = isObj(value) ? value : {};
 	// Receiptable's docs also show flat storeName / storeAddress / … fields
 	const flat = { name: c.storeName, address: c.storeAddress, phone: c.storePhone, website: c.storeWebsite };
@@ -111,7 +111,7 @@ export function normalizeContent(value: unknown): ReceiptContent {
 	});
 }
 
-export function normalizeStyle(value: unknown): ReceiptStyle {
+function normalizeStyle(value: unknown): ReceiptStyle {
 	const s = isObj(value) ? value : {};
 	return compact({
 		fontFamily: s.fontFamily === undefined ? undefined : cleanFamily(s.fontFamily),

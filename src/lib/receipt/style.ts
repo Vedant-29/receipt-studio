@@ -20,7 +20,7 @@ export interface ResolvedStyle {
 	edge: Edge;
 }
 
-export const DEFAULT_STYLE = {
+const DEFAULT_STYLE = {
 	fontFamily: 'monospace',
 	fontSize: 14,
 	footerFontSize: 12,

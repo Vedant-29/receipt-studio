@@ -9,6 +9,7 @@
 		"preview": "vite build && wrangler dev --port 8787 --infer-origin-from-routes=false",
 		"deploy": "vite build && wrangler deploy",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"smoke": "bash scripts/smoke.sh",
 		"prepare": "svelte-kit sync || echo ''"
 	},
 	"devDependencies": {

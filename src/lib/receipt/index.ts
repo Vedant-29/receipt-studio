@@ -5,6 +5,6 @@ export { TEMPLATE_INFO } from './meta';
 export { CURRENCIES, currencyFormat, formatMoney } from './money';
 export { isTemplate, normalizeReceipt, prune } from './normalize';
 export { renderDocument, renderReceipt } from './render';
-export { sampleReceipt, stamp } from './samples';
-export { DEFAULT_STYLE, resolveStyle } from './style';
+export { sampleReceipt } from './samples';
+export { resolveStyle } from './style';
 export { issuePath, validateReceipt, type Issue } from './validate';
